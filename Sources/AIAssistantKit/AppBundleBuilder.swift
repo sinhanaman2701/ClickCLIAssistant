@@ -4,10 +4,6 @@ public enum AppBundleBuilder {
     public static let installedBundleURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Applications", isDirectory: true)
         .appendingPathComponent("ClickCLIAssistant.app", isDirectory: true)
-    public static let installedServiceBundleURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Services", isDirectory: true)
-        .appendingPathComponent("ClickCLIAssistant.service", isDirectory: true)
 
     public static func ensureBundle(from executablePath: String) throws -> URL {
         let currentURL = URL(fileURLWithPath: executablePath)
@@ -40,9 +36,7 @@ public enum AppBundleBuilder {
         let bundleURL = installedBundleURL
 
         try recreateBundle(at: bundleURL, from: builtBinary)
-        try recreateServiceBundle()
         refreshLaunchServices(for: bundleURL)
-        refreshLaunchServices(for: installedServiceBundleURL)
         return bundleURL
     }
 
@@ -87,9 +81,6 @@ public enum AppBundleBuilder {
             ],
             "NSMessage": "useSkills",
             "NSPortName": "ClickCLIAssistant",
-            "NSRequiredContext": [
-                "NSServiceCategory": "public.text",
-            ],
             "NSSendTypes": [
                 "public.text",
                 "public.utf8-plain-text",
@@ -113,59 +104,6 @@ public enum AppBundleBuilder {
         ]
 
         return (try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)) ?? Data()
-    }
-
-    private static func makeServiceBundlePlist() -> Data {
-        let services: [[String: Any]] = [[
-            "NSMenuItem": [
-                "default": "Use Skills",
-            ],
-            "NSMessage": "useSkills",
-            "NSPortName": "ClickCLIAssistant",
-            "NSRequiredContext": [
-                "NSServiceCategory": "public.text",
-            ],
-            "NSSendTypes": [
-                "public.text",
-                "public.utf8-plain-text",
-            ],
-            "NSReturnTypes": [],
-        ]]
-
-        let plist: [String: Any] = [
-            "CFBundleDevelopmentRegion": "en",
-            "CFBundleDisplayName": "ClickCLIAssistant",
-            "CFBundleIdentifier": "com.sinhanaman2701.ClickCLIAssistant.services",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleName": "ClickCLIAssistant",
-            "CFBundlePackageType": "BNDL",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleVersion": "1",
-            "NSServices": services,
-        ]
-
-        return (try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)) ?? Data()
-    }
-
-    private static func recreateServiceBundle() throws {
-        let fileManager = FileManager.default
-        let bundleURL = installedServiceBundleURL
-
-        if fileManager.fileExists(atPath: bundleURL.path) {
-            try fileManager.removeItem(at: bundleURL)
-        }
-
-        let parentDirectory = bundleURL.deletingLastPathComponent()
-        try fileManager.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
-
-        let contentsDirectory = bundleURL.appendingPathComponent("Contents", isDirectory: true)
-        try fileManager.createDirectory(at: contentsDirectory, withIntermediateDirectories: true)
-
-        let infoPlistURL = contentsDirectory.appendingPathComponent("Info.plist")
-        try makeServiceBundlePlist().write(to: infoPlistURL, options: .atomic)
-
-        let pkgInfoURL = contentsDirectory.appendingPathComponent("PkgInfo")
-        try "BNDL????".write(to: pkgInfoURL, atomically: true, encoding: .utf8)
     }
 
     private static func packageRoot(from executableURL: URL) -> URL? {
