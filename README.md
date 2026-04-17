@@ -27,7 +27,13 @@ This repository currently includes:
 
 ## Install
 
-From the repository root:
+One-line bootstrap from anywhere:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/sinhanaman2701/ClickCLIAssistant/main/scripts/install.sh)
+```
+
+Manual install from the repository root:
 
 ```bash
 swift run click-assistant install
@@ -57,6 +63,12 @@ swift run click-assistant help
 swift run click-assistant install
 swift run click-assistant run
 swift run click-assistant doctor
+```
+
+If you used the bootstrap script, the repo is cloned to:
+
+```text
+~/.click-cli-assistant-src
 ```
 
 ## Run
