@@ -1,12 +1,11 @@
 # ClickCLIAssistant
 
-Browser-native MVP for a selection-based AI assistant:
+Selection-based AI assistant with two entry paths:
 
-- select text in the browser
-- right-click and choose `Use Skills`
-- pick a markdown-backed skill
-- run the selected skill through local Ollama using a cloud model such as `kimi-k2.5:cloud`
-- open a result page and copy the transformed output
+- global OS hotkey launcher (`Cmd+Shift+Space`) via `ai-assistant-app`
+- browser right-click `Use Skills` via extension + local bridge
+- markdown-backed skills from local `.md` files
+- Ollama local API with cloud-capable models such as `kimi-k2.5:cloud`
 
 ## Current State
 
@@ -16,6 +15,7 @@ This repository currently includes:
 - local config storage
 - dynamic markdown skill loading from a folder
 - local Ollama API integration
+- desktop launcher app with global hotkey and contextual result popover
 - a local browser bridge (`click-assistant bridge`)
 - generated browser extension files for Chrome/Brave/Firefox
 - bridge auto-start via `launchd` after install
@@ -64,6 +64,7 @@ swift run click-assistant install
 swift run click-assistant bridge
 swift run click-assistant doctor
 swift run click-assistant uninstall
+swift run ai-assistant-app
 ```
 
 If you used the bootstrap script, the repo is cloned to:
@@ -112,6 +113,25 @@ swift run click-assistant bridge
 ```
 
 When text is selected, right-click and use `Use Skills`.
+
+## OS Hotkey Launcher
+
+Run:
+
+```bash
+swift run ai-assistant-app
+```
+
+Use:
+
+1. Select text in any app.
+2. Press `Cmd+Shift+Space`.
+3. Choose a skill in the compact launcher.
+4. Use `Copy` or `Replace` in the result popover.
+
+Notes:
+- `Accessibility` permission is required for reliable selection read/replace.
+- Selection capture includes fast AX-first read with clipboard fallback for apps that do not expose AX selected text directly.
 
 For Firefox:
 
@@ -174,4 +194,4 @@ Rewrite the selected text into a structured prompt with sections for goal, conte
 - Safari packaging is not added yet
 - Firefox loading is temporary in this version (debug load flow)
 - manual bridge startup is still available (`click-assistant bridge`) as a fallback
-- result flow is copy-first only; it does not replace selected text in-page
+- some apps/sites still expose selection inconsistently, so fallback capture may vary by target app

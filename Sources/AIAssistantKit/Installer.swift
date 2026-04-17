@@ -119,11 +119,11 @@ public enum Installer {
     }
 
     private static func ensureSampleSkill(in directory: URL) throws {
-        let sample = directory.appendingPathComponent("Grammar Correction.md")
+        let sample = directory.appendingPathComponent("Grammar skill.md")
         guard !FileManager.default.fileExists(atPath: sample.path) else { return }
 
         let contents = """
-        # Grammar Correction
+        # Grammar skill
 
         ## Description
         Correct the grammar of the selected text and return only the corrected text.

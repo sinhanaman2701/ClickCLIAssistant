@@ -2,23 +2,20 @@ import AppKit
 import AIAssistantKit
 import Combine
 import Foundation
-import SwiftUI
 
 @MainActor
 final class AppController: ObservableObject {
     @Published private(set) var currentSelection: SelectionSnapshot?
-    @Published private(set) var isRunningSkill = false
-    @Published var previewText = ""
-    @Published var errorMessage: String?
 
     let config: AppConfig
     let skillStore: SkillStore
 
     private let ollamaClient: OllamaClient
-    private let popupController: PopupWindowController
-    private let previewController: PreviewWindowController
-    private var timer: Timer?
-    private var cancellables = Set<AnyCancellable>()
+    private let launcherController: LauncherWindowController
+    private let resultController: ResultPopoverController
+    private var hotKeyMonitor: GlobalHotKeyMonitor?
+    private var lastOutput: String = ""
+    private var isRunningSkill = false
 
     init(config: AppConfig) throws {
         self.config = config
@@ -28,81 +25,128 @@ final class AppController: ObservableObject {
             throw AppError.ollamaUnavailable("Invalid host \(config.ollamaHost)")
         }
         self.ollamaClient = OllamaClient(host: host, model: config.defaultModel)
-        self.popupController = PopupWindowController()
-        self.previewController = PreviewWindowController()
+        self.launcherController = LauncherWindowController()
+        self.resultController = ResultPopoverController()
     }
 
     func start() {
         _ = SelectionReader.accessibilityTrusted(promptIfNeeded: true)
         skillStore.start()
-        popupController.bind(to: self, skillStore: skillStore)
-        previewController.bind(to: self)
-
-        timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
+        launcherController.bind { [weak self] skill in
+            self?.run(skill: skill)
+        }
+        resultController.bind(
+            onCopy: { [weak self] in self?.copyResultToClipboard() },
+            onReplace: { [weak self] in self?.replaceSelectionWithResult() }
+        )
+        hotKeyMonitor = GlobalHotKeyMonitor { [weak self] in
             Task { @MainActor in
-                self?.pollSelection()
+                await self?.showLauncher()
             }
         }
-        pollSelection()
+        hotKeyMonitor?.start()
     }
 
-    func pollSelection() {
+    private func showLauncher() async {
         guard SelectionReader.accessibilityTrusted() else {
-            errorMessage = "Accessibility permission is required to read selected text."
-            popupController.hide()
+            launcherController.show(skills: skillStore.skills, status: "Enable Accessibility permission for this app first.")
             return
         }
 
-        guard let snapshot = SelectionReader.currentSelection(),
-              snapshot.text.split(whereSeparator: \.isNewline).count < 1500,
-              snapshot.text.split(whereSeparator: \.isWhitespace).count <= 1000 else {
+        guard let snapshot = await SelectionReader.currentSelectionWithClipboardFallback(),
+              isReasonableSelection(snapshot.text) else {
             currentSelection = nil
-            popupController.hide()
+            launcherController.show(skills: skillStore.skills, status: "Select text first, then press Cmd+Shift+Space.")
             return
         }
 
-        guard snapshot != currentSelection else { return }
         currentSelection = snapshot
-        popupController.show(near: snapshot.frame)
+        launcherController.show(skills: skillStore.skills, status: nil)
     }
 
-    func showSkillMenu() {
-        popupController.showSkillMenu(skills: skillStore.skills) { [weak self] skill in
-            Task { @MainActor in
-                self?.run(skill: skill)
-            }
+    private func run(skill: Skill) {
+        guard !isRunningSkill else { return }
+        guard let selection = currentSelection else {
+            launcherController.show(skills: skillStore.skills, status: "No selected text available.")
+            return
         }
-    }
-
-    func run(skill: Skill) {
-        guard let selection = currentSelection else { return }
+        launcherController.hide()
         isRunningSkill = true
-        errorMessage = nil
+        resultController.showLoading(skillName: skill.name, near: selection.frame)
 
         Task {
             do {
                 let output = try await ollamaClient.transform(text: selection.text, using: skill)
                 await MainActor.run {
                     self.isRunningSkill = false
-                    self.previewText = output
-                    self.previewController.update(previewText: output, errorMessage: nil)
-                    self.previewController.show()
+                    self.lastOutput = output
+                    self.resultController.showResult(
+                        skillName: skill.name,
+                        body: output,
+                        near: selection.frame,
+                        isError: false
+                    )
                 }
             } catch {
                 await MainActor.run {
                     self.isRunningSkill = false
-                    self.errorMessage = error.localizedDescription
-                    self.previewText = ""
-                    self.previewController.update(previewText: "", errorMessage: error.localizedDescription)
-                    self.previewController.show()
+                    self.lastOutput = ""
+                    self.resultController.showResult(
+                        skillName: skill.name,
+                        body: error.localizedDescription,
+                        near: selection.frame,
+                        isError: true
+                    )
                 }
             }
         }
     }
 
-    func copyPreviewToClipboard() {
-        guard !previewText.isEmpty else { return }
+    private func copyResultToClipboard() {
+        guard !lastOutput.isEmpty else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(previewText, forType: .string)
+        NSPasteboard.general.setString(lastOutput, forType: .string)
+    }
+
+    private func replaceSelectionWithResult() {
+        guard !lastOutput.isEmpty else { return }
+        guard let selection = currentSelection else { return }
+
+        let replaced = SelectionReader.replaceSelectedText(with: lastOutput)
+        if !replaced {
+            copyResultToClipboard()
+        }
+        resultController.showResult(
+            skillName: "Applied",
+            body: replaced ? "Selection replaced." : "Could not replace selection directly. Result copied to clipboard.",
+            near: selection.frame,
+            isError: false
+        )
+    }
+
+    // Compatibility shim for older preview controller wiring.
+    func copyPreviewToClipboard() {
+        copyResultToClipboard()
+    }
+
+    // Compatibility shim for older popup controller wiring.
+    func showSkillMenu() {
+        Task { @MainActor in
+            await showLauncher()
+        }
+    }
+
+    private func isReasonableSelection(_ text: String) -> Bool {
+        // Fast guardrails to keep launcher responsive on huge selections.
+        if text.utf16.count > 12_000 { return false }
+
+        var lines = 1
+        for scalar in text.unicodeScalars {
+            if scalar == "\n" {
+                lines += 1
+                if lines >= 1_500 { return false }
+            }
+        }
+        return true
     }
 }
