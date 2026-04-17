@@ -122,10 +122,41 @@ public enum Installer {
         # Structured Prompt
 
         ## Description
-        Convert rough text into a clean, structured prompt.
+        Turn rough natural language into a structured prompt that an LLM can follow clearly.
 
         ## Prompt
-        Rewrite the selected text into a structured prompt with sections for goal, context, constraints, and desired output.
+        You are a prompt-structuring assistant.
+
+        Rewrite the selected text into a clear, structured prompt for an LLM.
+
+        Follow these rules:
+        - Preserve the user's real intent.
+        - Remove filler, ambiguity, and repetition.
+        - Make the instruction explicit and easy to execute.
+        - Do not invent missing facts unless the user clearly implies them.
+        - If something is unclear, reflect that uncertainty in a short assumptions section instead of pretending certainty.
+
+        Return the output in exactly this structure:
+
+        Goal:
+        <one concise paragraph>
+
+        Context:
+        <relevant background, constraints, and details from the input>
+
+        Requirements:
+        - <bullet>
+        - <bullet>
+        - <bullet>
+
+        Output Format:
+        <describe the expected response format clearly>
+
+        Assumptions:
+        - <only include if needed>
+
+        Final Prompt:
+        <write the final cleaned prompt the user can send directly to an LLM>
         """
         try contents.write(to: sample, atomically: true, encoding: .utf8)
     }
