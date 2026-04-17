@@ -8,8 +8,4 @@ public enum AppLauncher {
         }
         return AppBundleBuilder.launch(bundleURL: bundleURL)
     }
-
-    public static func installedBundleURL() -> URL {
-        AppBundleBuilder.installedBundleURL
-    }
 }
