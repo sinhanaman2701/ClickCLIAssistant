@@ -18,6 +18,7 @@ This repository currently includes:
 - local Ollama API integration
 - a local browser bridge (`click-assistant bridge`)
 - generated browser extension files for Chrome/Brave/Firefox
+- bridge auto-start via `launchd` after install
 
 ## Prerequisites
 
@@ -126,6 +127,28 @@ For Firefox:
 
 Then run `swift run click-assistant bridge` and use right-click `Use Skills`.
 
+## Bridge Auto-Start
+
+`click-assistant install` now installs a LaunchAgent:
+
+```text
+~/Library/LaunchAgents/com.clickcliassistant.bridge.plist
+```
+
+It points to:
+
+```text
+~/.ai-assistant/bin/click-assistant bridge
+```
+
+So the bridge starts automatically on login and keeps running in the background.
+
+Check status:
+
+```bash
+swift run click-assistant doctor
+```
+
 ## Run
 
 You can still run the macOS app manually:
@@ -160,5 +183,5 @@ Rewrite the selected text into a structured prompt with sections for goal, conte
 
 - Safari packaging is not added yet
 - Firefox loading is temporary in this version (debug load flow)
-- bridge startup is manual in this version (`click-assistant bridge`)
+- manual bridge startup is still available (`click-assistant bridge`) as a fallback
 - result flow is copy-first only; it does not replace selected text in-page

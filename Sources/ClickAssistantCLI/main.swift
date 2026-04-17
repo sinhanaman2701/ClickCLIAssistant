@@ -67,6 +67,10 @@ struct ClickAssistantCLI {
         print("Local Ollama reachable: \(result.localHostReachable ? "yes" : "no")")
         print("Config path: \(result.configPath)")
         print("Config exists: \(result.configExists ? "yes" : "no")")
+        print("Bridge launch agent installed: \(result.bridgeAgent.isInstalled ? "yes" : "no")")
+        print("Bridge launch agent loaded: \(result.bridgeAgent.isLoaded ? "yes" : "no")")
+        print("Bridge launch agent plist: \(result.bridgeAgent.plistPath)")
+        print("Bridge binary path: \(result.bridgeAgent.binaryPath)")
     }
 
     private static func printUninstall(_ result: UninstallResult) {
