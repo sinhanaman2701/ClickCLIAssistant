@@ -25,10 +25,13 @@ final class PreviewWindowController: NSWindowController {
     required init?(coder: NSCoder) { nil }
 
     func bind(to appController: AppController) {
-        proxy.previewText = appController.previewText
-        proxy.errorMessage = appController.errorMessage
         proxy.copyAction = appController.copyPreviewToClipboard
         hostingView.rootView = PreviewRootView(proxy: proxy)
+    }
+
+    func update(previewText: String, errorMessage: String?) {
+        proxy.previewText = previewText
+        proxy.errorMessage = errorMessage
     }
 
     func show() {
@@ -51,10 +54,14 @@ private struct PreviewRootView: View {
                     .foregroundStyle(.red)
             }
 
-            TextEditor(text: .constant(appController.previewText))
-                .font(.system(size: 13))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .disabled(true)
+            ScrollView {
+                Text(appController.previewText.isEmpty ? "No output yet." : appController.previewText)
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .textBackgroundColor))
 
             HStack {
                 Button("Copy Result") {

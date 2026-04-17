@@ -33,6 +33,7 @@ final class AppController: ObservableObject {
     }
 
     func start() {
+        _ = SelectionReader.accessibilityTrusted(promptIfNeeded: true)
         skillStore.start()
         popupController.bind(to: self, skillStore: skillStore)
         previewController.bind(to: self)
@@ -65,6 +66,14 @@ final class AppController: ObservableObject {
         popupController.show(near: snapshot.frame)
     }
 
+    func showSkillMenu() {
+        popupController.showSkillMenu(skills: skillStore.skills) { [weak self] skill in
+            Task { @MainActor in
+                self?.run(skill: skill)
+            }
+        }
+    }
+
     func run(skill: Skill) {
         guard let selection = currentSelection else { return }
         isRunningSkill = true
@@ -76,6 +85,7 @@ final class AppController: ObservableObject {
                 await MainActor.run {
                     self.isRunningSkill = false
                     self.previewText = output
+                    self.previewController.update(previewText: output, errorMessage: nil)
                     self.previewController.show()
                 }
             } catch {
@@ -83,6 +93,7 @@ final class AppController: ObservableObject {
                     self.isRunningSkill = false
                     self.errorMessage = error.localizedDescription
                     self.previewText = ""
+                    self.previewController.update(previewText: "", errorMessage: error.localizedDescription)
                     self.previewController.show()
                 }
             }

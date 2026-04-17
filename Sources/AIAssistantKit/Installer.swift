@@ -115,48 +115,26 @@ public enum Installer {
     }
 
     private static func ensureSampleSkill(in directory: URL) throws {
-        let sample = directory.appendingPathComponent("Structured Prompt.md")
+        let sample = directory.appendingPathComponent("Grammar Correction.md")
         guard !FileManager.default.fileExists(atPath: sample.path) else { return }
 
         let contents = """
-        # Structured Prompt
+        # Grammar Correction
 
         ## Description
-        Turn rough natural language into a structured prompt that an LLM can follow clearly.
+        Correct the grammar of the selected text and return only the corrected text.
 
         ## Prompt
-        You are a prompt-structuring assistant.
+        You are a grammar correction assistant.
 
-        Rewrite the selected text into a clear, structured prompt for an LLM.
+        Correct the grammar, spelling, punctuation, and basic sentence flow of the selected text.
 
-        Follow these rules:
-        - Preserve the user's real intent.
-        - Remove filler, ambiguity, and repetition.
-        - Make the instruction explicit and easy to execute.
-        - Do not invent missing facts unless the user clearly implies them.
-        - If something is unclear, reflect that uncertainty in a short assumptions section instead of pretending certainty.
-
-        Return the output in exactly this structure:
-
-        Goal:
-        <one concise paragraph>
-
-        Context:
-        <relevant background, constraints, and details from the input>
-
-        Requirements:
-        - <bullet>
-        - <bullet>
-        - <bullet>
-
-        Output Format:
-        <describe the expected response format clearly>
-
-        Assumptions:
-        - <only include if needed>
-
-        Final Prompt:
-        <write the final cleaned prompt the user can send directly to an LLM>
+        Rules:
+        - Return only the corrected text.
+        - Do not explain the changes.
+        - Do not add headings, labels, or commentary.
+        - Preserve the original meaning and tone as much as possible.
+        - Make minimal changes unless grammar requires otherwise.
         """
         try contents.write(to: sample, atomically: true, encoding: .utf8)
     }

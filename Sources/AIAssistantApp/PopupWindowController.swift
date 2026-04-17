@@ -19,8 +19,9 @@ final class PopupWindowController: NSWindowController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
         panel.contentView = hostingView
         super.init(window: panel)
     }
@@ -35,8 +36,14 @@ final class PopupWindowController: NSWindowController {
     func show(near selectionFrame: CGRect) {
         let width: CGFloat = 140
         let height: CGFloat = 44
-        let x = selectionFrame.midX - width / 2
-        let y = selectionFrame.maxY + 8
+        var x = selectionFrame.midX - width / 2
+        var y = selectionFrame.maxY + 8
+
+        if let screen = NSScreen.screens.first(where: { NSIntersectsRect($0.visibleFrame, selectionFrame) || $0.visibleFrame.contains(selectionFrame.origin) }) {
+            x = min(max(x, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - width - 8)
+            y = min(max(y, screen.visibleFrame.minY + 8), screen.visibleFrame.maxY - height - 8)
+        }
+
         panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         panel.orderFrontRegardless()
     }
@@ -49,7 +56,6 @@ final class PopupWindowController: NSWindowController {
 private struct PopupRootView: View {
     var appController: AppController?
     @ObservedObject var skillStore: SkillStore
-    @State private var isExpanded = false
 
     init(appController: AppController? = nil, skillStore: SkillStore? = nil) {
         self.appController = appController
@@ -57,54 +63,16 @@ private struct PopupRootView: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                Label("Use Skills", systemImage: "sparkles")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(skillStore.skills) { skill in
-                        Button {
-                            isExpanded = false
-                            appController?.run(skill: skill)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(skill.name)
-                                    .font(.system(size: 12, weight: .semibold))
-                                if let description = skill.description, !description.isEmpty {
-                                    Text(description)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
-
-                        if skill.id != skillStore.skills.last?.id {
-                            Divider()
-                        }
-                    }
-                }
-                .frame(width: 260)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-            }
+        Button {
+            appController?.showSkillMenu()
+        } label: {
+            Label("Use Skills", systemImage: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
         }
+        .buttonStyle(.plain)
         .padding(6)
     }
 }
@@ -112,4 +80,43 @@ private struct PopupRootView: View {
 @MainActor
 private enum PreviewDummy {
     static let skillStore = SkillStore(skillsDirectory: FileManager.default.homeDirectoryForCurrentUser)
+}
+
+extension PopupWindowController {
+    func showSkillMenu(skills: [Skill], onSelect: @escaping (Skill) -> Void) {
+        let menu = NSMenu()
+
+        if skills.isEmpty {
+            let item = NSMenuItem(title: "No skills found", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        } else {
+            for skill in skills {
+                let item = NSMenuItem(title: skill.name, action: #selector(handleSkillMenuItem(_:)), keyEquivalent: "")
+                item.representedObject = SkillMenuAction(skill: skill, onSelect: onSelect)
+                item.target = self
+                menu.addItem(item)
+            }
+        }
+
+        guard let contentView = panel.contentView else { return }
+        let anchor = NSPoint(x: 16, y: contentView.bounds.height - 2)
+        menu.popUp(positioning: nil, at: anchor, in: contentView)
+    }
+
+    @objc
+    private func handleSkillMenuItem(_ sender: NSMenuItem) {
+        guard let action = sender.representedObject as? SkillMenuAction else { return }
+        action.onSelect(action.skill)
+    }
+}
+
+private final class SkillMenuAction: NSObject {
+    let skill: Skill
+    let onSelect: (Skill) -> Void
+
+    init(skill: Skill, onSelect: @escaping (Skill) -> Void) {
+        self.skill = skill
+        self.onSelect = onSelect
+    }
 }

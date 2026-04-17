@@ -3,8 +3,14 @@ import Cocoa
 import Foundation
 
 public enum SelectionReader {
-    public static func accessibilityTrusted() -> Bool {
-        AXIsProcessTrusted()
+    @MainActor
+    public static func accessibilityTrusted(promptIfNeeded: Bool = false) -> Bool {
+        if promptIfNeeded {
+            let promptKey = "AXTrustedCheckOptionPrompt" as CFString
+            let options = [promptKey as String: true] as CFDictionary
+            return AXIsProcessTrustedWithOptions(options)
+        }
+        return AXIsProcessTrusted()
     }
 
     public static func currentSelection() -> SelectionSnapshot? {
@@ -20,11 +26,13 @@ public enum SelectionReader {
         let focusedElement = focusedElementValue as! AXUIElement
 
         guard let text = copySelectedText(from: focusedElement),
-              let frame = copySelectionBounds(from: focusedElement),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
 
+        let frame = copySelectionBounds(from: focusedElement)
+            ?? copyElementFrame(from: focusedElement)
+            ?? fallbackFrameNearMouse()
         return SelectionSnapshot(text: text, frame: frame)
     }
 
@@ -73,5 +81,42 @@ public enum SelectionReader {
         var rect = CGRect.zero
         AXValueGetValue(boundsValue as! AXValue, .cgRect, &rect)
         return rect
+    }
+
+    private static func copyElementFrame(from element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        let positionResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXPositionAttribute as CFString,
+            &positionValue
+        )
+        let sizeResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXSizeAttribute as CFString,
+            &sizeValue
+        )
+
+        guard positionResult == .success,
+              sizeResult == .success,
+              let positionValue,
+              let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        var point = CGPoint.zero
+        var size = CGSize.zero
+        AXValueGetValue(positionValue as! AXValue, .cgPoint, &point)
+        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+
+        return CGRect(origin: point, size: size)
+    }
+
+    private static func fallbackFrameNearMouse() -> CGRect {
+        let location = NSEvent.mouseLocation
+        return CGRect(x: location.x, y: location.y, width: 1, height: 1)
     }
 }
