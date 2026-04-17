@@ -1,24 +1,23 @@
 # ClickCLIAssistant
 
-Native macOS MVP for a selection-based AI assistant:
+Browser-native MVP for a selection-based AI assistant:
 
-- select text
-- get a small `Use Skills` popup above the selection
-- click to open a dropdown of markdown-backed skills
+- select text in the browser
+- right-click and choose `Use Skills`
+- pick a markdown-backed skill
 - run the selected skill through local Ollama using a cloud model such as `kimi-k2.5:cloud`
-- preview and copy the result
+- open a result page and copy the transformed output
 
 ## Current State
 
 This repository currently includes:
 
-- a native macOS app target
 - a top-level CLI command
 - local config storage
 - dynamic markdown skill loading from a folder
-- skill folder watching so new `.md` files appear automatically
 - local Ollama API integration
-- a preview window for transformed output
+- a local browser bridge (`click-assistant bridge`)
+- generated browser extension files for Chrome/Brave/Firefox
 
 ## Prerequisites
 
@@ -48,6 +47,7 @@ The installer will:
 - create the local config file at `~/.ai-assistant/config.json`
 - create the skills folder
 - add a sample markdown skill
+- generate a Chromium browser extension
 - save your default model choice
 - launch the app automatically when setup succeeds
 
@@ -62,6 +62,7 @@ Important:
 swift run click-assistant help
 swift run click-assistant install
 swift run click-assistant run
+swift run click-assistant bridge
 swift run click-assistant doctor
 swift run click-assistant uninstall
 ```
@@ -92,11 +93,42 @@ cd ~/.click-cli-assistant-src
 swift run click-assistant uninstall --yes
 ```
 
+## Browser Setup
+
+After install, load the generated extension in Chrome or Brave:
+
+1. Open `chrome://extensions` (or `brave://extensions`).
+2. Enable Developer mode.
+3. Click `Load unpacked`.
+4. Select:
+
+```text
+~/.ai-assistant/browser-extension/chromium
+```
+
+Then start the local bridge:
+
+```bash
+swift run click-assistant bridge
+```
+
+When text is selected, right-click and use `Use Skills`.
+
+For Firefox:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click `Load Temporary Add-on`.
+3. Select `manifest.json` from:
+
+```text
+~/.ai-assistant/browser-extension/chromium
+```
+
+Then run `swift run click-assistant bridge` and use right-click `Use Skills`.
+
 ## Run
 
-The installer should launch the app automatically.
-
-You can also run it manually:
+You can still run the macOS app manually:
 
 ```bash
 swift run click-assistant run
@@ -110,7 +142,7 @@ Skills are loaded from the configured skills folder. By default:
 ~/.ai-assistant/skills
 ```
 
-Any new `.md` file added there should automatically appear in the popup dropdown.
+Any new `.md` file added there should automatically appear in the browser menu skill list.
 
 Example skill:
 
@@ -126,7 +158,7 @@ Rewrite the selected text into a structured prompt with sections for goal, conte
 
 ## Current Gaps
 
-- popup positioning is best-effort and depends on macOS accessibility APIs
-- app-to-app text selection support will vary
-- preview is copy-first only; it does not replace text in the source app yet
-- the app needs macOS Accessibility permission to inspect selected text
+- Safari packaging is not added yet
+- Firefox loading is temporary in this version (debug load flow)
+- bridge startup is manual in this version (`click-assistant bridge`)
+- result flow is copy-first only; it does not replace selected text in-page

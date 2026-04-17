@@ -18,6 +18,8 @@ struct ClickAssistantCLI {
                     throw AppError.missingConfig
                 }
                 print("AI Assistant app launched.")
+            case "bridge":
+                try await BridgeServer.run()
             case "doctor":
                 let result = await Installer.doctor()
                 printDoctor(result)
@@ -45,6 +47,7 @@ struct ClickAssistantCLI {
         Commands:
           install   Run setup, verify Ollama model access, save config, and launch the app
           run       Launch the AI Assistant app
+          bridge    Start the local browser bridge on 127.0.0.1:48765
           doctor    Check Ollama and config status
           uninstall Remove ClickCLIAssistant config, skills, and the default source clone
           help      Show this message
@@ -52,6 +55,7 @@ struct ClickAssistantCLI {
         Examples:
           swift run click-assistant install
           swift run click-assistant run
+          swift run click-assistant bridge
           swift run click-assistant doctor
           swift run click-assistant uninstall
         """)

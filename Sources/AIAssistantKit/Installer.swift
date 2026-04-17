@@ -56,6 +56,7 @@ public enum Installer {
             ollamaHost: host
         )
         try ConfigStore.save(config)
+        let browserExtensionDirectory = try BrowserExtensionInstaller.install()
 
         let didLaunch = AppLauncher.launchApp(from: executablePath)
 
@@ -63,6 +64,7 @@ public enum Installer {
             configPath: AppPaths.configFile.path,
             skillsDirectory: skillsDirectory.path,
             model: model,
+            browserExtensionDirectory: browserExtensionDirectory.path,
             didLaunchApp: didLaunch
         )
     }
@@ -73,14 +75,15 @@ public enum Installer {
         print("Skills directory: \(result.skillsDirectory)")
         print("Default model: \(result.model)")
         print("Add your .md skill files here: \(result.skillsDirectory)")
+        print("Browser extension directory (Chrome/Brave/Firefox): \(result.browserExtensionDirectory)")
         print("")
         if result.didLaunchApp {
             print("AI Assistant app launched.")
         } else {
             print("Could not auto-launch the app. Start it with `swift run ai-assistant-app` or `swift run click-assistant run`.")
         }
-        print("Select text in an app and look for the `Use Skills` popup above the selection.")
-        print("If the popup does not appear, enable Accessibility permission for Terminal in macOS Settings.")
+        print("Load the browser extension from that directory in Chrome/Brave/Firefox.")
+        print("Start the browser bridge with `swift run click-assistant bridge` before using `Use Skills` in right-click.")
     }
 
     public static func doctor() async -> DoctorResult {
@@ -177,6 +180,7 @@ public struct InstallResult: Sendable {
     public let configPath: String
     public let skillsDirectory: String
     public let model: String
+    public let browserExtensionDirectory: String
     public let didLaunchApp: Bool
 }
 
