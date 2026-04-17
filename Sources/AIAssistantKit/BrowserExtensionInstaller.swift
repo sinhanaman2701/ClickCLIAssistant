@@ -140,6 +140,28 @@ public enum BrowserExtensionInstaller {
       }
     }
 
+    function parseSkillId(menuItemId) {
+      if (typeof menuItemId !== "string") return null;
+      if (!menuItemId.startsWith(SKILL_PREFIX)) return null;
+      return menuItemId.slice(SKILL_PREFIX.length) || null;
+    }
+
+    async function resolveSkill(menuItemId) {
+      const cached = skillsByMenuId.get(menuItemId);
+      if (cached) return cached;
+
+      const skillId = parseSkillId(menuItemId);
+      if (!skillId) return null;
+
+      const payload = await request("/skills");
+      const skills = Array.isArray(payload?.skills) ? payload.skills : [];
+      const skill = skills.find((item) => item.id === skillId) || null;
+      if (skill) {
+        skillsByMenuId.set(menuItemId, skill);
+      }
+      return skill;
+    }
+
     async function refreshMenus() {
       await removeAllMenus();
       createRootMenu();
@@ -157,7 +179,12 @@ public enum BrowserExtensionInstaller {
     }
 
     async function handleSkillClick(menuItemId, selectedText) {
-      const skill = skillsByMenuId.get(menuItemId);
+      let skill = null;
+      try {
+        skill = await resolveSkill(menuItemId);
+      } catch {
+        skill = null;
+      }
       if (!skill) {
         await storageSet({
           [RESULT_KEY]: {
