@@ -5,16 +5,11 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appController: AppController?
-    private var servicesProvider: ServicesProvider?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             let config = try ConfigStore.load()
             let controller = try AppController(config: config)
-            let provider = ServicesProvider(appController: controller)
-            NSApplication.shared.servicesProvider = provider
-            NSApplication.shared.registerServicesMenuSendTypes([.string], returnTypes: [])
-            servicesProvider = provider
             controller.start()
             appController = controller
         } catch {
