@@ -271,6 +271,7 @@ public enum BrowserExtensionInstaller {
     const ROOT_ID = "click-assistant-popup-root";
     let root = null;
     let lastSelection = "";
+    let shownAt = 0;
 
     function ensureRoot() {
       if (root) return root;
@@ -304,6 +305,7 @@ public enum BrowserExtensionInstaller {
 
       document.addEventListener("mousedown", (event) => {
         if (!root || root.classList.contains("hidden")) return;
+        if (Date.now() - shownAt < 320) return;
         if (root.contains(event.target)) return;
         hidePopup();
       }, true);
@@ -410,6 +412,7 @@ public enum BrowserExtensionInstaller {
       }
 
       node.classList.remove("hidden");
+      shownAt = Date.now();
       positionPopup(node);
     }
 
