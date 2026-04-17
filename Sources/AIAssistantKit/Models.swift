@@ -66,6 +66,7 @@ public enum AppError: LocalizedError {
     case missingConfig
     case ollamaUnavailable(String)
     case unsupportedSelection
+    case uninstallCancelled
 
     public var errorDescription: String? {
         switch self {
@@ -77,6 +78,8 @@ public enum AppError: LocalizedError {
             return "Ollama is unavailable: \(detail)"
         case .unsupportedSelection:
             return "Unable to read the current text selection."
+        case .uninstallCancelled:
+            return "Uninstall cancelled."
         }
     }
 }

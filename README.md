@@ -63,12 +63,33 @@ swift run click-assistant help
 swift run click-assistant install
 swift run click-assistant run
 swift run click-assistant doctor
+swift run click-assistant uninstall
 ```
 
 If you used the bootstrap script, the repo is cloned to:
 
 ```text
 ~/.click-cli-assistant-src
+```
+
+## Remove Completely
+
+To remove the product from your system:
+
+```bash
+cd ~/.click-cli-assistant-src
+swift run click-assistant uninstall
+```
+
+That removes:
+- `~/.ai-assistant`
+- `~/.click-cli-assistant-src`
+
+Non-interactive uninstall:
+
+```bash
+cd ~/.click-cli-assistant-src
+swift run click-assistant uninstall --yes
 ```
 
 ## Run
