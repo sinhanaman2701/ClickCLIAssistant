@@ -17,6 +17,10 @@ public enum OllamaEnvironment {
         executablePath(for: "brew")
     }
 
+    public static func swiftPath() -> String? {
+        executablePath(for: "swift")
+    }
+
     public static func localOllamaReachable(host: String) async -> Bool {
         guard let url = URL(string: host)?.appending(path: "/api/tags") else { return false }
         do {
@@ -29,10 +33,17 @@ public enum OllamaEnvironment {
     }
 
     @discardableResult
-    public static func run(_ launchPath: String, _ arguments: [String]) -> (status: Int32, output: String) {
+    public static func run(
+        _ launchPath: String,
+        _ arguments: [String],
+        currentDirectory: String? = nil
+    ) -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
+        if let currentDirectory {
+            process.currentDirectoryURL = URL(fileURLWithPath: currentDirectory, isDirectory: true)
+        }
 
         let pipe = Pipe()
         process.standardOutput = pipe
