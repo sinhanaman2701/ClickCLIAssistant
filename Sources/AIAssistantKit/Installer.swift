@@ -59,15 +59,12 @@ public enum Installer {
         let browserExtensionDirectory = try BrowserExtensionInstaller.install()
         let bridgeAgent = try BridgeLaunchAgent.installAndStart(from: executablePath)
 
-        let didLaunch = AppLauncher.launchApp(from: executablePath)
-
         return InstallResult(
             configPath: AppPaths.configFile.path,
             skillsDirectory: skillsDirectory.path,
             model: model,
             browserExtensionDirectory: browserExtensionDirectory.path,
-            bridgeAgent: bridgeAgent,
-            didLaunchApp: didLaunch
+            bridgeAgent: bridgeAgent
         )
     }
 
@@ -82,11 +79,6 @@ public enum Installer {
         print("Bridge auto-start: \(result.bridgeAgent.autoStartEnabled ? "enabled" : "not enabled")")
         print("Bridge loaded now: \(result.bridgeAgent.isLoaded ? "yes" : "no")")
         print("")
-        if result.didLaunchApp {
-            print("AI Assistant app launched.")
-        } else {
-            print("Could not auto-launch the app. Start it with `swift run ai-assistant-app` or `swift run click-assistant run`.")
-        }
         print("Load the browser extension from that directory in Chrome/Brave/Firefox.")
         if !result.bridgeAgent.isLoaded {
             print("Bridge is not running automatically. Start it manually with `swift run click-assistant bridge`.")
@@ -191,7 +183,6 @@ public struct InstallResult: Sendable {
     public let model: String
     public let browserExtensionDirectory: String
     public let bridgeAgent: BridgeLaunchAgentStatus
-    public let didLaunchApp: Bool
 }
 
 public struct DoctorResult: Sendable {

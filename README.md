@@ -50,7 +50,6 @@ The installer will:
 - add a sample markdown skill
 - generate a Chromium browser extension
 - save your default model choice
-- launch the app automatically when setup succeeds
 
 Important:
 
@@ -62,7 +61,6 @@ Important:
 ```bash
 swift run click-assistant help
 swift run click-assistant install
-swift run click-assistant run
 swift run click-assistant bridge
 swift run click-assistant doctor
 swift run click-assistant uninstall
@@ -107,7 +105,7 @@ After install, load the generated extension in Chrome or Brave:
 ~/.ai-assistant/browser-extension/chromium
 ```
 
-Then start the local bridge:
+Bridge auto-start is configured during install. If needed, you can still run it manually:
 
 ```bash
 swift run click-assistant bridge
@@ -125,7 +123,7 @@ For Firefox:
 ~/.ai-assistant/browser-extension/chromium
 ```
 
-Then run `swift run click-assistant bridge` and use right-click `Use Skills`.
+Bridge auto-start is configured during install. If needed, run `swift run click-assistant bridge` and use right-click `Use Skills`.
 
 ## Bridge Auto-Start
 
@@ -147,14 +145,6 @@ Check status:
 
 ```bash
 swift run click-assistant doctor
-```
-
-## Run
-
-You can still run the macOS app manually:
-
-```bash
-swift run click-assistant run
 ```
 
 ## Skills

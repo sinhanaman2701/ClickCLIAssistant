@@ -14,10 +14,7 @@ struct ClickAssistantCLI {
                 let result = try await Installer.run()
                 Installer.printSummary(result)
             case "run":
-                if !AppLauncher.launchApp() {
-                    throw AppError.missingConfig
-                }
-                print("AI Assistant app launched.")
+                throw AppError.ollamaUnavailable("Desktop app flow is removed. Use browser extension + `click-assistant bridge`.")
             case "bridge":
                 try await BridgeServer.run()
             case "doctor":
@@ -45,8 +42,8 @@ struct ClickAssistantCLI {
         click-assistant <command>
 
         Commands:
-          install   Run setup, verify Ollama model access, save config, and launch the app
-          run       Launch the AI Assistant app
+          install   Run setup, verify Ollama model access, save config, and install browser extension files
+          run       Deprecated (desktop flow removed)
           bridge    Start the local browser bridge on 127.0.0.1:48765
           doctor    Check Ollama and config status
           uninstall Remove ClickCLIAssistant config, skills, and the default source clone
@@ -54,7 +51,6 @@ struct ClickAssistantCLI {
 
         Examples:
           swift run click-assistant install
-          swift run click-assistant run
           swift run click-assistant bridge
           swift run click-assistant doctor
           swift run click-assistant uninstall
