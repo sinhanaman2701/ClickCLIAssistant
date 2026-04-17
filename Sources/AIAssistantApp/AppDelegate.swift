@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let provider = ServicesProvider(appController: controller)
             NSApplication.shared.servicesProvider = provider
             NSApplication.shared.registerServicesMenuSendTypes([.string], returnTypes: [])
+            NSUpdateDynamicServices()
             servicesProvider = provider
             controller.start()
             appController = controller
