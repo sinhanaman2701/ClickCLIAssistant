@@ -12,9 +12,8 @@ public enum BrowserExtensionInstaller {
 
         try write(file: "manifest.json", to: directory, contents: manifest)
         try write(file: "background.js", to: directory, contents: backgroundJS)
-        try write(file: "result.html", to: directory, contents: resultHTML)
-        try write(file: "result.js", to: directory, contents: resultJS)
-        try write(file: "result.css", to: directory, contents: resultCSS)
+        try write(file: "content.js", to: directory, contents: contentJS)
+        try write(file: "content.css", to: directory, contents: contentCSS)
 
         return directory
     }
@@ -28,13 +27,21 @@ public enum BrowserExtensionInstaller {
     {
       "manifest_version": 3,
       "name": "ClickCLIAssistant",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Use local markdown skills from the browser context menu.",
-      "permissions": ["contextMenus", "storage"],
+      "permissions": ["contextMenus"],
       "host_permissions": ["\(bridgeURL)/*"],
       "background": {
         "service_worker": "background.js"
       },
+      "content_scripts": [
+        {
+          "matches": ["<all_urls>"],
+          "js": ["content.js"],
+          "css": ["content.css"],
+          "run_at": "document_idle"
+        }
+      ],
       "browser_specific_settings": {
         "gecko": {
           "id": "click-cli-assistant@local",
@@ -49,7 +56,6 @@ public enum BrowserExtensionInstaller {
     const BRIDGE = "\(bridgeURL)";
     const ROOT_ID = "click_assistant_root";
     const SKILL_PREFIX = "click_assistant_skill_";
-    const RESULT_KEY = "click_assistant_last_result";
     const skillsByMenuId = new Map();
 
     function maybePromise(value) {
@@ -86,15 +92,19 @@ public enum BrowserExtensionInstaller {
       }
     }
 
-    function openTab(url) {
-      return maybePromise(ext.tabs.create({ url }));
-    }
-
-    function storageSet(value) {
+    function sendMessageToTab(tabId, message) {
+      if (typeof tabId !== "number") return Promise.resolve(false);
       try {
-        return maybePromise(ext.storage.local.set(value));
+        return maybePromise(ext.tabs.sendMessage(tabId, message))
+          .then(() => true)
+          .catch(() => false);
       } catch {
-        return callWithCallback(ext.storage.local.set.bind(ext.storage.local), value);
+        return new Promise((resolve) => {
+          ext.tabs.sendMessage(tabId, message, () => {
+            const error = ext.runtime?.lastError;
+            resolve(!error);
+          });
+        });
       }
     }
 
@@ -178,38 +188,46 @@ public enum BrowserExtensionInstaller {
       }
     }
 
-    async function handleSkillClick(menuItemId, selectedText) {
+    async function showLoading(tabId, skillName, selectedText) {
+      await sendMessageToTab(tabId, {
+        type: "click_assistant_show_popup",
+        status: "loading",
+        skillName,
+        selectedText,
+        output: ""
+      });
+    }
+
+    async function showResult(tabId, skillName, selectedText, output, error) {
+      await sendMessageToTab(tabId, {
+        type: "click_assistant_show_popup",
+        status: error ? "error" : "success",
+        skillName,
+        selectedText,
+        output: output || "",
+        error: error || ""
+      });
+    }
+
+    async function handleSkillClick(menuItemId, selectedText, tabId) {
       let skill = null;
       try {
         skill = await resolveSkill(menuItemId);
       } catch {
         skill = null;
       }
+
       if (!skill) {
-        await storageSet({
-          [RESULT_KEY]: {
-            skillName: "Unknown Skill",
-            output: "",
-            selectedText: selectedText || "",
-            error: "Selected skill was not found. Reload the extension and try again."
-          }
-        });
-        await openTab(ext.runtime.getURL("result.html"));
+        await showResult(tabId, "Unknown Skill", selectedText || "", "", "Selected skill was not found. Reload the extension and try again.");
         return;
       }
 
       if (!selectedText || !selectedText.trim()) {
-        await storageSet({
-          [RESULT_KEY]: {
-            skillName: skill.name,
-            output: "",
-            selectedText: "",
-            error: "Browser did not provide selected text. Select plain text on the page and try again."
-          }
-        });
-        await openTab(ext.runtime.getURL("result.html"));
+        await showResult(tabId, skill.name, "", "", "Browser did not provide selected text. Select plain text on the page and try again.");
         return;
       }
+
+      await showLoading(tabId, skill.name, selectedText);
 
       try {
         const payload = await request("/transform", {
@@ -218,243 +236,334 @@ public enum BrowserExtensionInstaller {
           body: JSON.stringify({ skillId: skill.id, text: selectedText })
         });
 
-        await storageSet({
-          [RESULT_KEY]: {
-            skillName: payload.skillName || skill.name,
-            output: payload.output || "",
-            selectedText
-          }
-        });
-
-        await openTab(ext.runtime.getURL("result.html"));
+        await showResult(
+          tabId,
+          payload.skillName || skill.name,
+          selectedText,
+          payload.output || "",
+          ""
+        );
       } catch (error) {
-        await storageSet({
-          [RESULT_KEY]: {
-            skillName: skill.name,
-            output: "",
-            selectedText,
-            error: error instanceof Error ? error.message : String(error)
-          }
-        });
-
-        await openTab(ext.runtime.getURL("result.html"));
+        await showResult(
+          tabId,
+          skill.name,
+          selectedText,
+          "",
+          error instanceof Error ? error.message : String(error)
+        );
       }
     }
 
     ext.runtime.onInstalled.addListener(refreshMenus);
     ext.runtime.onStartup.addListener(refreshMenus);
 
-    ext.contextMenus.onClicked.addListener((info) => {
+    ext.contextMenus.onClicked.addListener((info, tab) => {
       if (typeof info.menuItemId !== "string") return;
       if (!info.menuItemId.startsWith(SKILL_PREFIX)) return;
-      handleSkillClick(info.menuItemId, info.selectionText || "");
+      const tabId = typeof tab?.id === "number" ? tab.id : null;
+      handleSkillClick(info.menuItemId, info.selectionText || "", tabId);
     });
 
     refreshMenus();
     """
 
-    private static let resultHTML = """
-    <!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Click Assistant Result</title>
-      <link rel="stylesheet" href="result.css" />
-    </head>
-    <body>
-      <main class="container">
-        <h1 id="title">Skill Result</h1>
-        <p id="meta"></p>
-        <div id="error" class="error hidden"></div>
-        <textarea id="output" readonly></textarea>
-        <button id="copy">Copy Result</button>
-      </main>
-      <script src="result.js" type="module"></script>
-    </body>
-    </html>
-    """
+    private static let contentJS = """
+    const ROOT_ID = "click-assistant-popup-root";
+    let root = null;
+    let lastSelection = "";
 
-    private static let resultJS = """
-    const ext = globalThis.browser ?? globalThis.chrome;
-    const RESULT_KEY = "click_assistant_last_result";
+    function ensureRoot() {
+      if (root) return root;
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.className = "click-assistant-popover hidden";
+      root.innerHTML = `
+        <div class="click-assistant-popover-arrow"></div>
+        <div class="click-assistant-popover-title" id="click-assistant-title">Use Skills</div>
+        <div class="click-assistant-popover-divider"></div>
+        <div class="click-assistant-popover-body" id="click-assistant-body"></div>
+        <div class="click-assistant-popover-actions">
+          <button id="click-assistant-replace" class="click-assistant-btn">Replace</button>
+          <button id="click-assistant-copy" class="click-assistant-btn">Copy</button>
+        </div>
+      `;
+      document.documentElement.appendChild(root);
 
-    function maybePromise(value) {
-      if (value && typeof value.then === "function") return value;
-      return Promise.resolve(value);
-    }
+      const replace = root.querySelector("#click-assistant-replace");
+      const copy = root.querySelector("#click-assistant-copy");
 
-    function storageGet(key) {
-      try {
-        return maybePromise(ext.storage.local.get(key));
-      } catch {
-        return new Promise((resolve, reject) => {
-          ext.storage.local.get(key, (value) => {
-            const error = ext.runtime?.lastError;
-            if (error) {
-              reject(new Error(error.message || String(error)));
-              return;
-            }
-            resolve(value);
-          });
-        });
-      }
-    }
-
-    async function loadResult() {
-      const stored = await storageGet(RESULT_KEY);
-      return stored[RESULT_KEY] || null;
-    }
-
-    async function copyOutput(value) {
-      await navigator.clipboard.writeText(value);
-    }
-
-    function setText(id, value) {
-      const node = document.getElementById(id);
-      if (!node) return;
-      node.textContent = value;
-    }
-
-    function setError(message) {
-      const node = document.getElementById("error");
-      if (!node) return;
-      if (!message) {
-        node.classList.add("hidden");
-        node.textContent = "";
-        return;
-      }
-      node.classList.remove("hidden");
-      node.textContent = message;
-    }
-
-    async function bootstrap() {
-      const result = await loadResult();
-      const output = document.getElementById("output");
-      const copy = document.getElementById("copy");
-
-      if (!output || !copy) return;
-
-      if (!result) {
-        setText("title", "No Result Available");
-        setText("meta", "Run a skill from the browser right-click menu.");
-        setError("");
-        output.value = "";
-        copy.disabled = true;
-        return;
-      }
-
-      setText("title", result.skillName || "Skill Result");
-      setText("meta", "Processed selected text through local Ollama.");
-      setError(result.error || "");
-      output.value = result.output || "";
-      copy.disabled = !(result.output || "").trim();
-
-      copy.addEventListener("click", async () => {
-        const value = output.value || "";
+      replace?.addEventListener("click", () => replaceSelection());
+      copy?.addEventListener("click", async () => {
+        const body = root.querySelector("#click-assistant-body");
+        const value = body?.textContent || "";
         if (!value.trim()) return;
-        await copyOutput(value);
+        await navigator.clipboard.writeText(value);
         copy.textContent = "Copied";
-        setTimeout(() => {
-          copy.textContent = "Copy Result";
-        }, 1200);
+        setTimeout(() => { copy.textContent = "Copy"; }, 1000);
       });
+
+      document.addEventListener("mousedown", (event) => {
+        if (!root || root.classList.contains("hidden")) return;
+        if (root.contains(event.target)) return;
+        hidePopup();
+      }, true);
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          hidePopup();
+        }
+      });
+
+      return root;
     }
 
-    bootstrap();
+    function hidePopup() {
+      const node = ensureRoot();
+      node.classList.add("hidden");
+    }
+
+    function currentSelectionRect() {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const text = selection.toString().trim();
+        if (text) lastSelection = text;
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect && (rect.width > 0 || rect.height > 0)) {
+          return rect;
+        }
+      }
+      return null;
+    }
+
+    function positionPopup(node) {
+      const rect = currentSelectionRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = Math.min(760, Math.max(340, Math.floor(vw * 0.48)));
+      node.style.width = `${width}px`;
+
+      const popRect = node.getBoundingClientRect();
+      const gap = 12;
+
+      let left = window.scrollX + (vw - width) / 2;
+      let top = window.scrollY + 20;
+      let arrowLeft = width / 2;
+
+      if (rect) {
+        left = window.scrollX + rect.left + (rect.width - width) / 2;
+        top = window.scrollY + rect.top - popRect.height - gap;
+        if (top < window.scrollY + 12) {
+          top = window.scrollY + rect.bottom + gap;
+          node.classList.add("below");
+        } else {
+          node.classList.remove("below");
+        }
+        arrowLeft = window.scrollX + rect.left + rect.width / 2 - left;
+      } else {
+        node.classList.remove("below");
+      }
+
+      const minLeft = window.scrollX + 12;
+      const maxLeft = window.scrollX + vw - width - 12;
+      left = Math.max(minLeft, Math.min(maxLeft, left));
+
+      const maxTop = window.scrollY + vh - popRect.height - 12;
+      top = Math.max(window.scrollY + 12, Math.min(maxTop, top));
+
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+
+      const arrow = node.querySelector(".click-assistant-popover-arrow");
+      if (arrow) {
+        const minArrow = 20;
+        const maxArrow = width - 20;
+        arrowLeft = Math.max(minArrow, Math.min(maxArrow, arrowLeft));
+        arrow.style.left = `${arrowLeft}px`;
+      }
+    }
+
+    function setPopupMessage(title, body, status) {
+      const node = ensureRoot();
+      const titleNode = node.querySelector("#click-assistant-title");
+      const bodyNode = node.querySelector("#click-assistant-body");
+      const replace = node.querySelector("#click-assistant-replace");
+      const copy = node.querySelector("#click-assistant-copy");
+
+      titleNode.textContent = title || "Use Skills";
+      bodyNode.textContent = body || "";
+
+      node.classList.remove("loading");
+      node.classList.remove("error");
+
+      if (status === "loading") {
+        node.classList.add("loading");
+        replace.setAttribute("disabled", "disabled");
+        copy.setAttribute("disabled", "disabled");
+      } else if (status === "error") {
+        node.classList.add("error");
+        replace.setAttribute("disabled", "disabled");
+        copy.removeAttribute("disabled");
+      } else {
+        replace.removeAttribute("disabled");
+        copy.removeAttribute("disabled");
+      }
+
+      node.classList.remove("hidden");
+      positionPopup(node);
+    }
+
+    function replaceSelection() {
+      const node = ensureRoot();
+      const body = node.querySelector("#click-assistant-body");
+      const value = body?.textContent || "";
+      if (!value.trim()) return;
+
+      const active = document.activeElement;
+      if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) {
+        const start = active.selectionStart ?? 0;
+        const end = active.selectionEnd ?? start;
+        const current = active.value || "";
+        active.value = current.slice(0, start) + value + current.slice(end);
+        const caret = start + value.length;
+        active.setSelectionRange(caret, caret);
+        return;
+      }
+
+      document.execCommand("insertText", false, value);
+    }
+
+    function onRuntimeMessage(message) {
+      if (!message || message.type !== "click_assistant_show_popup") return;
+
+      if (message.selectedText && message.selectedText.trim()) {
+        lastSelection = message.selectedText.trim();
+      }
+
+      if (message.status === "loading") {
+        setPopupMessage(message.skillName || "Use Skills", "Working on it...", "loading");
+        return;
+      }
+
+      if (message.status === "error") {
+        setPopupMessage(message.skillName || "Use Skills", message.error || "Unknown error", "error");
+        return;
+      }
+
+      setPopupMessage(message.skillName || "Use Skills", message.output || "", "success");
+    }
+
+    const ext = globalThis.browser ?? globalThis.chrome;
+    ext.runtime.onMessage.addListener(onRuntimeMessage);
     """
 
-    private static let resultCSS = """
-    :root {
-      --bg: #12141a;
-      --panel: #1b2029;
-      --text: #edf1f8;
-      --muted: #9faac2;
-      --accent: #1f8f6f;
-      --accent-hover: #26ab85;
-      --error: #e66f6f;
-      --border: #2a3040;
+    private static let contentCSS = """
+    .click-assistant-popover {
+      position: absolute;
+      z-index: 2147483647;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: linear-gradient(160deg, rgba(40, 44, 54, 0.96), rgba(24, 27, 33, 0.96));
+      color: #f2f6ff;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.42);
+      padding: 16px;
+      font-family: "SF Pro Text", "Avenir Next", "Segoe UI", sans-serif;
     }
 
-    * {
-      box-sizing: border-box;
+    .click-assistant-popover.hidden {
+      display: none;
     }
 
-    body {
-      margin: 0;
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
-      color: var(--text);
-      background: radial-gradient(circle at top left, #22324a 0%, var(--bg) 45%);
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
+    .click-assistant-popover-arrow {
+      position: absolute;
+      bottom: -7px;
+      width: 14px;
+      height: 14px;
+      transform: rotate(45deg);
+      background: rgba(30, 34, 42, 0.96);
+      border-right: 1px solid rgba(255, 255, 255, 0.16);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      margin-left: -7px;
     }
 
-    .container {
-      width: min(860px, 100%);
-      background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    .click-assistant-popover.below .click-assistant-popover-arrow {
+      top: -7px;
+      bottom: auto;
+      border-right: none;
+      border-bottom: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.16);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
     }
 
-    h1 {
-      margin: 0 0 6px;
-      font-size: clamp(22px, 3vw, 30px);
-      letter-spacing: 0;
-    }
-
-    #meta {
-      margin: 0 0 14px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 360px;
-      max-height: 60vh;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--text);
-      padding: 14px;
-      resize: vertical;
-      font: 14px/1.5 "SF Mono", Menlo, monospace;
-    }
-
-    button {
-      margin-top: 14px;
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 14px;
+    .click-assistant-popover-title {
+      font-size: 18px;
+      line-height: 1.2;
       font-weight: 700;
       letter-spacing: 0;
-      background: var(--accent);
-      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .click-assistant-popover-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+      margin-bottom: 12px;
+    }
+
+    .click-assistant-popover-body {
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 500;
+      letter-spacing: 0;
+      white-space: pre-wrap;
+      max-height: 220px;
+      overflow: auto;
+      margin-bottom: 12px;
+      word-break: break-word;
+    }
+
+    .click-assistant-popover-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .click-assistant-btn {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.08);
+      color: #eff4ff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
       cursor: pointer;
-      transition: background 160ms ease;
     }
 
-    button:hover {
-      background: var(--accent-hover);
-    }
-
-    button:disabled {
-      background: #3a4256;
+    .click-assistant-btn[disabled] {
+      opacity: 0.45;
       cursor: not-allowed;
     }
 
-    .error {
-      margin: 0 0 10px;
-      color: var(--error);
-      font-size: 14px;
+    .click-assistant-popover.loading .click-assistant-popover-body {
+      color: #c5d2ea;
+      font-style: italic;
     }
 
-    .hidden {
-      display: none;
+    .click-assistant-popover.error .click-assistant-popover-body {
+      color: #ff9e9e;
+    }
+
+    @media (max-width: 640px) {
+      .click-assistant-popover {
+        width: calc(100vw - 24px) !important;
+      }
+      .click-assistant-popover-title {
+        font-size: 16px;
+      }
+      .click-assistant-popover-body {
+        font-size: 14px;
+      }
     }
     """
 }
