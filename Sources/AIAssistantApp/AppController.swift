@@ -16,6 +16,7 @@ final class AppController: ObservableObject {
 
     private let ollamaClient: OllamaClient
     private let popupController: PopupWindowController
+    private let serviceSkillPanelController: ServiceSkillPanelController
     private let previewController: PreviewWindowController
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -29,6 +30,7 @@ final class AppController: ObservableObject {
         }
         self.ollamaClient = OllamaClient(host: host, model: config.defaultModel)
         self.popupController = PopupWindowController()
+        self.serviceSkillPanelController = ServiceSkillPanelController()
         self.previewController = PreviewWindowController()
     }
 
@@ -69,19 +71,34 @@ final class AppController: ObservableObject {
     func showSkillMenu() {
         popupController.showSkillMenu(skills: skillStore.skills) { [weak self] skill in
             Task { @MainActor in
-                self?.run(skill: skill)
+                guard let selection = self?.currentSelection?.text else { return }
+                self?.run(skill: skill, text: selection)
             }
         }
     }
 
     func run(skill: Skill) {
         guard let selection = currentSelection else { return }
+        run(skill: skill, text: selection.text)
+    }
+
+    func presentServiceSkillChooser(text: String) {
+        let anchor = NSEvent.mouseLocation
+        serviceSkillPanelController.show(skills: skillStore.skills, selectedText: text, anchor: anchor) { [weak self] skill in
+            Task { @MainActor in
+                self?.serviceSkillPanelController.hide()
+                self?.run(skill: skill, text: text)
+            }
+        }
+    }
+
+    func run(skill: Skill, text: String) {
         isRunningSkill = true
         errorMessage = nil
 
         Task {
             do {
-                let output = try await ollamaClient.transform(text: selection.text, using: skill)
+                let output = try await ollamaClient.transform(text: text, using: skill)
                 await MainActor.run {
                     self.isRunningSkill = false
                     self.previewText = output

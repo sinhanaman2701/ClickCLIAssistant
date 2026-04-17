@@ -5,6 +5,7 @@ Native macOS MVP for a selection-based AI assistant:
 - select text
 - get a small `Use Skills` popup above the selection
 - click to open a dropdown of markdown-backed skills
+- use `Use Skills` from the macOS Services / right-click menu
 - run the selected skill through local Ollama using a cloud model such as `kimi-k2.5:cloud`
 - preview and copy the result
 
@@ -14,6 +15,7 @@ This repository currently includes:
 
 - a native macOS app target
 - a top-level CLI command
+- a macOS Service registered as `Use Skills`
 - local config storage
 - dynamic markdown skill loading from a folder
 - skill folder watching so new `.md` files appear automatically
@@ -50,6 +52,7 @@ The installer will:
 - add a sample markdown skill
 - save your default model choice
 - launch the app automatically when setup succeeds
+- register the app bundle so `Use Skills` appears in the Services menu
 
 Important:
 
@@ -102,6 +105,12 @@ You can also run it manually:
 swift run click-assistant run
 ```
 
+After the app is running, select text in any supported macOS app and use:
+
+- right-click menu
+- Services
+- `Use Skills`
+
 ## Skills
 
 Skills are loaded from the configured skills folder. By default:
@@ -115,13 +124,13 @@ Any new `.md` file added there should automatically appear in the popup dropdown
 Example skill:
 
 ```md
-# Structured Prompt
+# Grammar Correction
 
 ## Description
-Convert rough text into a clean, structured prompt.
+Correct grammar, spelling, punctuation, and basic sentence flow.
 
 ## Prompt
-Rewrite the selected text into a structured prompt with sections for goal, context, constraints, and desired output.
+Correct the grammar, spelling, punctuation, and basic sentence flow of the selected text. Return only the corrected text. Do not explain the changes.
 ```
 
 ## Current Gaps
