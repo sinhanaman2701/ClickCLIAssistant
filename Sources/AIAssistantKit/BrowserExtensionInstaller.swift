@@ -158,7 +158,31 @@ public enum BrowserExtensionInstaller {
 
     async function handleSkillClick(menuItemId, selectedText) {
       const skill = skillsByMenuId.get(menuItemId);
-      if (!skill || !selectedText) return;
+      if (!skill) {
+        await storageSet({
+          [RESULT_KEY]: {
+            skillName: "Unknown Skill",
+            output: "",
+            selectedText: selectedText || "",
+            error: "Selected skill was not found. Reload the extension and try again."
+          }
+        });
+        await openTab(ext.runtime.getURL("result.html"));
+        return;
+      }
+
+      if (!selectedText || !selectedText.trim()) {
+        await storageSet({
+          [RESULT_KEY]: {
+            skillName: skill.name,
+            output: "",
+            selectedText: "",
+            error: "Browser did not provide selected text. Select plain text on the page and try again."
+          }
+        });
+        await openTab(ext.runtime.getURL("result.html"));
+        return;
+      }
 
       try {
         const payload = await request("/transform", {
