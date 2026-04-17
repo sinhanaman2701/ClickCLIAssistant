@@ -11,7 +11,7 @@ final class PopupWindowController: NSWindowController {
         let rootView = PopupRootView()
         self.hostingView = NSHostingView(rootView: rootView)
         self.panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 148, height: 40),
+            contentRect: NSRect(x: 0, y: 0, width: 140, height: 44),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -19,7 +19,7 @@ final class PopupWindowController: NSWindowController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .popUpMenu
+        panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.contentView = hostingView
@@ -34,21 +34,15 @@ final class PopupWindowController: NSWindowController {
     }
 
     func show(near selectionFrame: CGRect) {
-        let width: CGFloat = 148
-        let height: CGFloat = 40
-        let anchorScreen = screen(for: selectionFrame) ?? NSScreen.main ?? NSScreen.screens.first
-        let visibleFrame = anchorScreen?.visibleFrame ?? .zero
-        let aboveY = selectionFrame.minY - height - 10
-        let belowY = selectionFrame.maxY + 10
-        let preferredY = aboveY >= visibleFrame.minY + 8 ? aboveY : belowY
-        let x = min(
-            max(selectionFrame.midX - width / 2, visibleFrame.minX + 8),
-            visibleFrame.maxX - width - 8
-        )
-        let y = min(
-            max(preferredY, visibleFrame.minY + 8),
-            visibleFrame.maxY - height - 8
-        )
+        let width: CGFloat = 140
+        let height: CGFloat = 44
+        var x = selectionFrame.midX - width / 2
+        var y = selectionFrame.maxY + 8
+
+        if let screen = NSScreen.screens.first(where: { NSIntersectsRect($0.visibleFrame, selectionFrame) || $0.visibleFrame.contains(selectionFrame.origin) }) {
+            x = min(max(x, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - width - 8)
+            y = min(max(y, screen.visibleFrame.minY + 8), screen.visibleFrame.maxY - height - 8)
+        }
 
         panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         panel.orderFrontRegardless()
@@ -114,38 +108,6 @@ extension PopupWindowController {
     private func handleSkillMenuItem(_ sender: NSMenuItem) {
         guard let action = sender.representedObject as? SkillMenuAction else { return }
         action.onSelect(action.skill)
-    }
-
-    private func screen(for rect: CGRect) -> NSScreen? {
-        NSScreen.screens.first { screen in
-            screen.visibleFrame.intersects(rect)
-        } ?? NSScreen.screens.min(by: { lhs, rhs in
-            let lhsDistance = distance(lhs.visibleFrame, to: rect)
-            let rhsDistance = distance(rhs.visibleFrame, to: rect)
-            return lhsDistance < rhsDistance
-        })
-    }
-
-    private func distance(_ frame: CGRect, to rect: CGRect) -> CGFloat {
-        let dx: CGFloat
-        if rect.midX < frame.minX {
-            dx = frame.minX - rect.midX
-        } else if rect.midX > frame.maxX {
-            dx = rect.midX - frame.maxX
-        } else {
-            dx = 0
-        }
-
-        let dy: CGFloat
-        if rect.midY < frame.minY {
-            dy = frame.minY - rect.midY
-        } else if rect.midY > frame.maxY {
-            dy = rect.midY - frame.maxY
-        } else {
-            dy = 0
-        }
-
-        return dx * dx + dy * dy
     }
 }
 
