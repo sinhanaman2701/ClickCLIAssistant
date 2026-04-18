@@ -86,10 +86,28 @@ final class AppController: ObservableObject {
             do {
                 let stream = ollamaClient.transform(text: selection.text, using: skill)
                 var fullText = ""
+                var buffer = ""
+                var lastRender = Date()
+                
                 for try await chunk in stream {
                     fullText += chunk
+                    buffer += chunk
+                    
+                    if Date().timeIntervalSince(lastRender) > 0.05 {
+                        let toRender = buffer
+                        buffer = ""
+                        lastRender = Date()
+                        await MainActor.run {
+                            self.launcherController.appendStreamedText(toRender)
+                        }
+                    }
+                }
+                
+                // Flush any remaining
+                if !buffer.isEmpty {
+                    let toRender = buffer
                     await MainActor.run {
-                        self.launcherController.appendStreamedText(chunk)
+                        self.launcherController.appendStreamedText(toRender)
                     }
                 }
                 
