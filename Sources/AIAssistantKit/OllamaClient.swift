@@ -77,9 +77,20 @@ public struct OllamaClient: Sendable {
 private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Sendable {
     let continuation: AsyncThrowingStream<String, Error>.Continuation
     private let jsonBuffer = UnsafeMutableTransferBox("")
+    private let httpError = UnsafeMutableErrorBox()
 
     init(continuation: AsyncThrowingStream<String, Error>.Continuation) {
         self.continuation = continuation
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
+            let status = httpResponse.statusCode
+            httpError.error = AppError.ollamaUnavailable("Ollama returned HTTP \(status)")
+            completionHandler(.cancel)
+            return
+        }
+        completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -115,7 +126,8 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
             continuation.yield(content)
         }
 
-        if let error = error {
+        let finalError = httpError.error ?? error
+        if let error = finalError {
             continuation.finish(throwing: error)
         } else {
             continuation.finish()
@@ -128,6 +140,11 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
 private final class UnsafeMutableTransferBox: @unchecked Sendable {
     var value: String
     init(_ value: String) { self.value = value }
+}
+
+private final class UnsafeMutableErrorBox: @unchecked Sendable {
+    var error: Error?
+    init(_ error: Error? = nil) { self.error = error }
 }
 
 private struct GenerateRequest: Encodable {
