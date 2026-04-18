@@ -120,7 +120,11 @@ private actor BridgeService {
         }
 
         let client = OllamaClient(host: hostURL, model: config.defaultModel)
-        let output = try await client.transform(text: request.text, using: skill)
+        let stream = client.transform(text: request.text, using: skill)
+        var output = ""
+        for try await chunk in stream {
+            output += chunk
+        }
         let response = TransformResponse(skillID: skill.id, skillName: skill.name, output: output)
         return try JSONEncoder().encode(response)
     }

@@ -12,7 +12,6 @@ final class AppController: ObservableObject {
 
     private let ollamaClient: OllamaClient
     private let launcherController: LauncherWindowController
-    private let resultController: ResultPopoverController
     private var hotKeyMonitor: GlobalHotKeyMonitor?
     private var lastOutput: String = ""
     private var isRunningSkill = false
@@ -26,19 +25,27 @@ final class AppController: ObservableObject {
         }
         self.ollamaClient = OllamaClient(host: host, model: config.defaultModel)
         self.launcherController = LauncherWindowController()
-        self.resultController = ResultPopoverController()
     }
 
     func start() {
         _ = SelectionReader.accessibilityTrusted(promptIfNeeded: true)
         skillStore.start()
+        
         launcherController.bind { [weak self] skill in
             self?.run(skill: skill)
         }
-        resultController.bind(
-            onCopy: { [weak self] in self?.copyResultToClipboard() },
-            onReplace: { [weak self] in self?.replaceSelectionWithResult() }
-        )
+        launcherController.proxy.onCopy = { [weak self] in
+            self?.copyResultToClipboard()
+        }
+        launcherController.proxy.onReplace = { [weak self] in
+            self?.replaceSelectionWithResult()
+        }
+        launcherController.proxy.onBack = { [weak self] in
+            Task { @MainActor in
+                await self?.showLauncher()
+            }
+        }
+        
         hotKeyMonitor = GlobalHotKeyMonitor { [weak self] in
             Task { @MainActor in
                 await self?.showLauncher()
@@ -70,33 +77,32 @@ final class AppController: ObservableObject {
             launcherController.show(skills: skillStore.skills, status: "No selected text available.")
             return
         }
-        launcherController.hide()
+        
+        // Remove .hide() so we stay in the same window, just transitioning state
         isRunningSkill = true
-        resultController.showLoading(skillName: skill.name, near: selection.frame)
+        launcherController.showLoading(skillName: skill.name)
 
         Task {
             do {
-                let output = try await ollamaClient.transform(text: selection.text, using: skill)
+                let stream = ollamaClient.transform(text: selection.text, using: skill)
+                var fullText = ""
+                for try await chunk in stream {
+                    fullText += chunk
+                    await MainActor.run {
+                        self.launcherController.appendStreamedText(chunk)
+                    }
+                }
+                
                 await MainActor.run {
                     self.isRunningSkill = false
-                    self.lastOutput = output
-                    self.resultController.showResult(
-                        skillName: skill.name,
-                        body: output,
-                        near: selection.frame,
-                        isError: false
-                    )
+                    self.lastOutput = fullText
+                    self.launcherController.finishStreaming()
                 }
             } catch {
                 await MainActor.run {
                     self.isRunningSkill = false
                     self.lastOutput = ""
-                    self.resultController.showResult(
-                        skillName: skill.name,
-                        body: error.localizedDescription,
-                        near: selection.frame,
-                        isError: true
-                    )
+                    self.launcherController.showError(error.localizedDescription)
                 }
             }
         }
@@ -106,22 +112,19 @@ final class AppController: ObservableObject {
         guard !lastOutput.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(lastOutput, forType: .string)
+        // Optionally close it or reset
+        launcherController.hide()
     }
 
     private func replaceSelectionWithResult() {
         guard !lastOutput.isEmpty else { return }
-        guard let selection = currentSelection else { return }
-
         let replaced = SelectionReader.replaceSelectedText(with: lastOutput)
         if !replaced {
-            copyResultToClipboard()
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(lastOutput, forType: .string)
         }
-        resultController.showResult(
-            skillName: "Applied",
-            body: replaced ? "Selection replaced." : "Could not replace selection directly. Result copied to clipboard.",
-            near: selection.frame,
-            isError: false
-        )
+        // Close window immediately on replace to remain seamless
+        launcherController.hide()
     }
 
     // Compatibility shim for older preview controller wiring.
@@ -137,9 +140,7 @@ final class AppController: ObservableObject {
     }
 
     private func isReasonableSelection(_ text: String) -> Bool {
-        // Fast guardrails to keep launcher responsive on huge selections.
         if text.utf16.count > 12_000 { return false }
-
         var lines = 1
         for scalar in text.unicodeScalars {
             if scalar == "\n" {

@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 final class LauncherWindowController: NSWindowController {
-    private let proxy = LauncherProxyController()
+    let proxy = LauncherProxyController()
     private let panel: NSPanel
     private let hostingView: NSHostingView<LauncherRootView>
     private var localMonitor: Any?
@@ -41,7 +41,11 @@ final class LauncherWindowController: NSWindowController {
         proxy.query = ""
         proxy.status = status
         proxy.selectedIndex = 0
-        panel.setFrame(centeredFrame(), display: true)
+        proxy.viewState = .skills
+        
+        let size = NSSize(width: 520, height: 260)
+        panel.setContentSize(size)
+        panel.setFrame(centeredFrame(size: size), display: true)
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         installDismissMonitors()
@@ -50,13 +54,41 @@ final class LauncherWindowController: NSWindowController {
         }
     }
 
+    func showLoading(skillName: String) {
+        proxy.resultTitle = skillName
+        proxy.resultBody = "Working on it..."
+        proxy.viewState = .loading
+        let size = NSSize(width: 560, height: 350)
+        panel.setContentSize(size)
+        panel.setFrame(centeredFrame(size: size), display: true)
+    }
+
+    func appendStreamedText(_ chunk: String) {
+        if proxy.viewState == .loading || proxy.viewState == .error {
+            proxy.resultBody = ""
+            proxy.viewState = .streaming
+        }
+        proxy.resultBody += chunk
+    }
+
+    func finishStreaming() {
+        proxy.viewState = .result
+    }
+
+    func showError(_ error: String) {
+        proxy.resultBody = error
+        proxy.viewState = .error
+        let size = NSSize(width: 560, height: 350)
+        panel.setContentSize(size)
+        panel.setFrame(centeredFrame(size: size), display: true)
+    }
+
     func hide() {
         panel.orderOut(nil)
         removeDismissMonitors()
     }
 
-    private func centeredFrame() -> NSRect {
-        let size = NSSize(width: 520, height: 260)
+    private func centeredFrame(size: NSSize = NSSize(width: 520, height: 260)) -> NSRect {
         guard let screen = NSScreen.main else {
             return NSRect(x: 300, y: 300, width: size.width, height: size.height)
         }
@@ -119,12 +151,27 @@ final class LauncherWindowController: NSWindowController {
 
 @MainActor
 final class LauncherProxyController: ObservableObject {
+    enum ViewState {
+        case skills
+        case loading
+        case streaming
+        case result
+        case error
+    }
+
+    @Published var viewState: ViewState = .skills
     @Published var query = ""
     @Published var skills: [Skill] = []
     @Published var status: String?
     @Published var selectedIndex = 0
 
+    @Published var resultTitle = ""
+    @Published var resultBody = ""
+
     var onSelect: ((Skill) -> Void)?
+    var onCopy: (() -> Void)?
+    var onReplace: (() -> Void)?
+    var onBack: (() -> Void)?
     var focusSearch: (() -> Void)?
 
     var filteredSkills: [Skill] {
@@ -155,6 +202,31 @@ private struct LauncherRootView: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
+        Group {
+            if proxy.viewState == .skills {
+                skillsView
+            } else {
+                resultView
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 26)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.28, green: 0.30, blue: 0.35), Color(red: 0.20, green: 0.21, blue: 0.25)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var skillsView: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
@@ -205,20 +277,6 @@ private struct LauncherRootView: View {
         }
         .padding(14)
         .frame(width: 520, height: 260)
-        .background(
-            RoundedRectangle(cornerRadius: 26)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.28, green: 0.30, blue: 0.35), Color(red: 0.20, green: 0.21, blue: 0.25)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        )
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
@@ -238,5 +296,64 @@ private struct LauncherRootView: View {
                 break
             }
         }
+    }
+
+    @ViewBuilder
+    private var resultView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(proxy.resultTitle)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.white)
+
+            Divider()
+                .overlay(Color.white.opacity(0.2))
+
+            ScrollView {
+                Text(proxy.resultBody)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(proxy.viewState == .error ? Color.red.opacity(0.85) : Color.white.opacity(0.95))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 8) {
+                Button(action: {
+                    proxy.onReplace?()
+                }) {
+                    Text("Replace")
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                }
+                .disabled(proxy.viewState == .loading || proxy.viewState == .error || proxy.resultBody.isEmpty)
+                .buttonStyle(.borderedProminent)
+
+                Button(action: {
+                    proxy.onCopy?()
+                }) {
+                    Text("Copy")
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                }
+                .disabled(proxy.viewState == .loading || proxy.resultBody.isEmpty)
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button(action: {
+                    proxy.onBack?()
+                }) {
+                    Text("Back")
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.top, 4)
+        }
+        .padding(16)
+        .frame(width: 560, height: 350)
     }
 }
