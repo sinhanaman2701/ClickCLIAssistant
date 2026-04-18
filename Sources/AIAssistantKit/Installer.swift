@@ -2,7 +2,6 @@ import Foundation
 
 public enum Installer {
     public static func run(executablePath: String = CommandLine.arguments[0]) async throws -> InstallResult {
-        try ensureOllamaInstalled()
 
         let host = "http://localhost:11434"
         let skillsDirectory = AppPaths.appSupportDirectory.appendingPathComponent("skills", isDirectory: true)
@@ -10,50 +9,105 @@ public enum Installer {
         try FileManager.default.createDirectory(at: skillsDirectory, withIntermediateDirectories: true)
         try ensureSampleSkill(in: skillsDirectory)
 
-        let modelCommand = prompt(
-            "Paste your Ollama cloud model command",
-            defaultValue: "ollama run kimi-k2.5:cloud"
-        )
-        let model = try parseModel(from: modelCommand)
-
         print("")
-        print("Verifying model \(model)...")
-        guard let ollamaPath = OllamaEnvironment.ollamaPath() else {
-            throw AppError.ollamaUnavailable("Could not resolve the `ollama` executable.")
-        }
-        var verifyResult = OllamaEnvironment.run(
-            ollamaPath,
-            ["run", model, "Reply with only OK"]
-        )
+        print("Click Assistant setup")
+        print("How would you like to run AI inference?")
+        print("  [1] Local Ollama  — Free, offline, uses local models.")
+        print("                      ⚠ Cloud models (.:cloud) may be slow locally.")
+        print("  [2] Ollama API Key — Calls https://ollama.com/api directly.")
+        print("                      Free tier, fast response, requires internet.")
+        print("")
+        
+        let modeSelection = prompt("Choose [1/2]", defaultValue: "2")
 
-        if verifyResult.status != 0, model.hasSuffix(":cloud") {
-            print("Verification failed. Attempting `ollama signin` and retrying...")
-            let signInStatus = OllamaEnvironment.runInteractive(ollamaPath, ["signin"])
-            guard signInStatus == 0 else {
-                throw AppError.ollamaUnavailable("`ollama signin` did not complete successfully.")
+        let setupMode: AppConfig.SetupMode
+        var apiKey: String? = nil
+        let model: String
+        
+        if modeSelection == "1" {
+            setupMode = .localOllama
+            
+            try ensureOllamaInstalled()
+            guard let ollamaPath = OllamaEnvironment.ollamaPath() else {
+                throw AppError.ollamaUnavailable("Could not resolve the `ollama` executable.")
             }
-            verifyResult = OllamaEnvironment.run(
+
+            // Auto-detect installed models and show them
+            let installedModels = detectInstalledModels(ollamaPath: ollamaPath)
+            let smartDefault = pickBestModel(from: installedModels)
+
+            if !installedModels.isEmpty {
+                print("")
+                print("Detected Ollama models:")
+                for m in installedModels { print("  - \(m)") }
+            }
+
+            print("")
+            let modelCommand = prompt(
+                "Paste your Ollama model command (or just the model name)",
+                defaultValue: "ollama run \(smartDefault)"
+            )
+            model = try parseModel(from: modelCommand)
+
+            print("")
+            print("Verifying model \(model)...")
+            var verifyResult = OllamaEnvironment.run(
                 ollamaPath,
                 ["run", model, "Reply with only OK"]
             )
-        }
 
-        guard verifyResult.status == 0 else {
-            let detail = verifyResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw AppError.ollamaUnavailable(
-                detail.isEmpty ? "Model verification failed for \(model)." : detail
+            if verifyResult.status != 0, model.hasSuffix(":cloud") {
+                print("Verification failed. Attempting `ollama signin` and retrying...")
+                let signInStatus = OllamaEnvironment.runInteractive(ollamaPath, ["signin"])
+                guard signInStatus == 0 else {
+                    throw AppError.ollamaUnavailable("`ollama signin` did not complete successfully.")
+                }
+                verifyResult = OllamaEnvironment.run(
+                    ollamaPath,
+                    ["run", model, "Reply with only OK"]
+                )
+            }
+
+            guard verifyResult.status == 0 else {
+                let detail = verifyResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                throw AppError.ollamaUnavailable(
+                    detail.isEmpty ? "Model verification failed for \(model)." : detail
+                )
+            }
+            
+            let reachable = await OllamaEnvironment.localOllamaReachable(host: host)
+            guard reachable else {
+                throw AppError.ollamaUnavailable("Local Ollama is still not reachable at \(host) after verification.")
+            }
+        } else {
+            setupMode = .apiKey
+            print("")
+            print("ℹ To get your API key:")
+            print("   1. Sign in or create an account at https://ollama.com")
+            print("   2. Go to Settings -> API Keys -> Generate new key")
+            
+            print("")
+            apiKey = prompt("Paste your Ollama API key", defaultValue: "")
+            if apiKey?.isEmpty == true {
+                throw AppError.ollamaUnavailable("API key cannot be empty.")
+            }
+            
+            let modelCommand = prompt(
+                "Which model?",
+                defaultValue: "kimi-k2.5:cloud"
             )
-        }
-
-        let reachable = await OllamaEnvironment.localOllamaReachable(host: host)
-        guard reachable else {
-            throw AppError.ollamaUnavailable("Local Ollama is still not reachable at \(host) after verification.")
+            model = try parseModel(from: modelCommand)
+            
+            print("")
+            print("Verifying API key... ✅") // We skip the full run verify since it's an external API
         }
 
         let config = AppConfig(
             skillsDirectory: skillsDirectory.path,
             defaultModel: model,
-            ollamaHost: host
+            ollamaHost: host,
+            setupMode: setupMode,
+            apiKey: apiKey
         )
         try ConfigStore.save(config)
 
@@ -107,6 +161,27 @@ public enum Installer {
         guard status == 0 else {
             throw AppError.ollamaUnavailable("Automatic `brew install ollama` failed.")
         }
+    }
+
+    /// Fetch all model names from `ollama list`
+    private static func detectInstalledModels(ollamaPath: String) -> [String] {
+        let result = OllamaEnvironment.run(ollamaPath, ["list"])
+        guard result.status == 0 else { return [] }
+        let lines = result.output.components(separatedBy: .newlines).dropFirst() // skip header
+        return lines.compactMap { line -> String? in
+            let name = line.split(whereSeparator: \.isWhitespace).first.map(String.init)
+            guard let n = name, !n.isEmpty else { return nil }
+            return n
+        }
+    }
+
+    /// Prefer small/fast local models; fall back to cloud if nothing local
+    private static func pickBestModel(from models: [String]) -> String {
+        // Prefer models that are local (no :cloud suffix), smallest first
+        let local = models.filter { !$0.hasSuffix(":cloud") }
+        if let best = local.first { return best }
+        // Fall back to cloud models if that's all we have
+        return models.first ?? "kimi-k2.5:cloud"
     }
 
     private static func ensureSampleSkill(in directory: URL) throws {

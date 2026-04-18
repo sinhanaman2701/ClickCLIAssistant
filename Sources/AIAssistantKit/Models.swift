@@ -5,6 +5,7 @@ public struct AppConfig: Codable, Sendable {
     public var defaultModel: String
     public var ollamaHost: String
     public var setupMode: SetupMode
+    public var apiKey: String?
 
     public enum SetupMode: String, Codable, Sendable {
         case localOllama
@@ -15,12 +16,14 @@ public struct AppConfig: Codable, Sendable {
         skillsDirectory: String,
         defaultModel: String = "kimi-k2.5:cloud",
         ollamaHost: String = "http://localhost:11434",
-        setupMode: SetupMode = .localOllama
+        setupMode: SetupMode = .localOllama,
+        apiKey: String? = nil
     ) {
         self.skillsDirectory = skillsDirectory
         self.defaultModel = defaultModel
         self.ollamaHost = ollamaHost
         self.setupMode = setupMode
+        self.apiKey = apiKey
     }
 }
 

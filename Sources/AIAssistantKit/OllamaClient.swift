@@ -3,15 +3,21 @@ import Foundation
 public struct OllamaClient: Sendable {
     public let host: URL
     public let model: String
+    public let apiKey: String?
 
-    public init(host: URL, model: String) {
+    public init(host: URL, model: String, apiKey: String? = nil) {
         self.host = host
         self.model = model
+        self.apiKey = apiKey
     }
 
     public func healthCheck() async throws {
         let url = host.appending(path: "/api/tags")
-        let (_, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        if let apiKey = apiKey {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
             throw AppError.ollamaUnavailable("Unexpected response from \(url.absoluteString)")
         }
@@ -19,10 +25,13 @@ public struct OllamaClient: Sendable {
 
     public func transform(text: String, using skill: Skill) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            let url = host.appending(path: "/api/generate")
-            var request = URLRequest(url: url)
+            let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
+            var request = URLRequest(url: url, timeoutInterval: 30)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let apiKey = apiKey {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
             do {
@@ -46,8 +55,12 @@ public struct OllamaClient: Sendable {
                 return
             }
 
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 60
+
             let streamer = OllamaStreamDelegate(continuation: continuation)
-            let session = URLSession(configuration: .ephemeral, delegate: streamer, delegateQueue: nil)
+            let session = URLSession(configuration: config, delegate: streamer, delegateQueue: nil)
             let task = session.dataTask(with: request)
 
             continuation.onTermination = { @Sendable _ in

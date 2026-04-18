@@ -23,7 +23,7 @@ final class AppController: ObservableObject {
         guard let host = URL(string: config.ollamaHost) else {
             throw AppError.ollamaUnavailable("Invalid host \(config.ollamaHost)")
         }
-        self.ollamaClient = OllamaClient(host: host, model: config.defaultModel)
+        self.ollamaClient = OllamaClient(host: host, model: config.defaultModel, apiKey: config.apiKey)
         self.launcherController = LauncherWindowController()
     }
 
