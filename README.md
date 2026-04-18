@@ -5,7 +5,9 @@ Selection-based AI assistant with two entry paths:
 - global OS hotkey launcher (`Cmd+Shift+Space`) via `ai-assistant-app`
 - browser right-click `Use Skills` via extension + local bridge
 - markdown-backed skills from local `.md` files
-- Ollama local API with cloud-capable models such as `kimi-k2.5:cloud`
+- Dual Setup Architecture:
+  - Local Ollama fallback (fast, offline inference using models like `qwen2.5:1.5b`)
+  - Ollama Cloud API Key flow (instant sub-second TTFT for heavy cloud models like `kimi-k2.5:cloud` directly from official servers)
 
 ## Current State
 
