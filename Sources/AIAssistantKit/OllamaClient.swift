@@ -12,7 +12,7 @@ public struct OllamaClient: Sendable {
     }
 
     public func healthCheck() async throws {
-        let url = host.appending(path: "/api/tags")
+        let url = apiKey != nil ? URL(string: "https://ollama.com/api/tags")! : host.appending(path: "/api/tags")
         var request = URLRequest(url: url)
         if let apiKey = apiKey {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

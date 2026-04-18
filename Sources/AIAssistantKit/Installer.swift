@@ -18,7 +18,7 @@ public enum Installer {
         print("                      Free tier, fast response, requires internet.")
         print("")
         
-        let modeSelection = prompt("Choose [1/2]", defaultValue: "2")
+        let modeSelection = prompt("Choose 1 or 2", defaultValue: "2")
 
         let setupMode: AppConfig.SetupMode
         var apiKey: String? = nil
@@ -92,14 +92,27 @@ public enum Installer {
                 throw AppError.ollamaUnavailable("API key cannot be empty.")
             }
             
+            print("")
+            print("ℹ You can find available models on ollama.com")
+            print("   For example: go to a model page (like qwen2.5)")
+            print("   and look for the run command (e.g. `ollama run qwen2.5`)")
+            
             let modelCommand = prompt(
-                "Which model?",
+                "Which model? (paste the command or just the name)",
                 defaultValue: "kimi-k2.5:cloud"
             )
             model = try parseModel(from: modelCommand)
             
             print("")
-            print("Verifying API key... ✅") // We skip the full run verify since it's an external API
+            print("Verifying API key... ", terminator: "")
+            let client = OllamaClient(host: URL(string: host)!, model: model, apiKey: apiKey)
+            do {
+                try await client.healthCheck()
+                print("✅")
+            } catch {
+                print("❌")
+                throw AppError.ollamaUnavailable("Failed to verify API key: \(error.localizedDescription)")
+            }
         }
 
         let config = AppConfig(
