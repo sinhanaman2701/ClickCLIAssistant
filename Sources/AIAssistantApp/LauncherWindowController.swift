@@ -274,9 +274,11 @@ private struct LauncherRootView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .top)
+
+            Spacer(minLength: 0)
         }
         .padding(14)
-        .frame(width: 520, height: 260)
+        .frame(width: 520, height: 260, alignment: .top)
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
