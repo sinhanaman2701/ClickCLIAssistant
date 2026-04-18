@@ -14,7 +14,7 @@ final class LauncherWindowController: NSWindowController {
     init() {
         self.hostingView = NSHostingView(rootView: LauncherRootView(proxy: proxy))
         self.panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 260),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 260),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -43,7 +43,7 @@ final class LauncherWindowController: NSWindowController {
         proxy.selectedIndex = 0
         proxy.viewState = .skills
         
-        let size = NSSize(width: 520, height: 260)
+        let size = NSSize(width: 560, height: 260)
         panel.setContentSize(size)
         panel.setFrame(centeredFrame(size: size), display: true)
         panel.orderFrontRegardless()
@@ -56,31 +56,47 @@ final class LauncherWindowController: NSWindowController {
 
     func showLoading(skillName: String) {
         proxy.resultTitle = skillName
-        proxy.resultBody = "Working on it..."
-        proxy.viewState = .loading
-        let size = NSSize(width: 560, height: 350)
-        panel.setContentSize(size)
-        panel.setFrame(centeredFrame(size: size), display: true)
+        proxy.resultBody = "Thinking..."
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            proxy.viewState = .loading
+        }
+        
+        let size = NSSize(width: 560, height: 360)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.4
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(centeredFrame(size: size), display: true)
+        }
     }
 
     func appendStreamedText(_ chunk: String) {
         if proxy.viewState == .loading || proxy.viewState == .error {
             proxy.resultBody = ""
-            proxy.viewState = .streaming
+            withAnimation(.snappy) {
+                proxy.viewState = .streaming
+            }
         }
         proxy.resultBody += chunk
     }
 
     func finishStreaming() {
-        proxy.viewState = .result
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            proxy.viewState = .result
+        }
     }
 
     func showError(_ error: String) {
         proxy.resultBody = error
-        proxy.viewState = .error
-        let size = NSSize(width: 560, height: 350)
-        panel.setContentSize(size)
-        panel.setFrame(centeredFrame(size: size), display: true)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            proxy.viewState = .error
+        }
+        let size = NSSize(width: 560, height: 360)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(centeredFrame(size: size), display: true)
+        }
     }
 
     func hide() {
@@ -88,7 +104,7 @@ final class LauncherWindowController: NSWindowController {
         removeDismissMonitors()
     }
 
-    private func centeredFrame(size: NSSize = NSSize(width: 520, height: 260)) -> NSRect {
+    private func centeredFrame(size: NSSize = NSSize(width: 560, height: 260)) -> NSRect {
         guard let screen = NSScreen.main else {
             return NSRect(x: 300, y: 300, width: size.width, height: size.height)
         }
@@ -205,80 +221,80 @@ private struct LauncherRootView: View {
         Group {
             if proxy.viewState == .skills {
                 skillsView
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
             } else {
                 resultView
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 26)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.28, green: 0.30, blue: 0.35), Color(red: 0.20, green: 0.21, blue: 0.25)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black.opacity(0.45))
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
     }
 
     @ViewBuilder
     private var skillsView: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .semibold))
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles.magnifyingglass")
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.9))
                 TextField("Use Skill", text: $proxy.query)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .focused($searchFocused)
                     .onSubmit {
                         proxy.submitSelection()
                     }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(Color.white.opacity(0.14), in: Capsule())
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             if let status = proxy.status {
                 Text(status)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.85))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 6)
             }
 
-            VStack(spacing: 8) {
-                ForEach(Array(proxy.filteredSkills.prefix(3).enumerated()), id: \.element.id) { index, skill in
-                    Button {
-                        proxy.onSelect?(skill)
-                    } label: {
-                        Text(skill.name)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                index == proxy.selectedIndex
-                                    ? Color.white.opacity(0.22)
-                                    : Color.white.opacity(0.12),
-                                in: Capsule()
-                            )
+            if !proxy.filteredSkills.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(Array(proxy.filteredSkills.prefix(3).enumerated()), id: \.element.id) { index, skill in
+                        Button {
+                            proxy.onSelect?(skill)
+                        } label: {
+                            Text(skill.name)
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(index == proxy.selectedIndex ? Color.white.opacity(0.2) : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, alignment: .top)
 
             Spacer(minLength: 0)
         }
-        .padding(14)
-        .frame(width: 520, height: 260, alignment: .top)
+        .padding(18)
+        .frame(width: 560, height: 260, alignment: .top)
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
@@ -302,60 +318,87 @@ private struct LauncherRootView: View {
 
     @ViewBuilder
     private var resultView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(proxy.resultTitle)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                if proxy.viewState == .loading || proxy.viewState == .streaming {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else if proxy.viewState == .error {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
 
-            Divider()
-                .overlay(Color.white.opacity(0.2))
+                Text(proxy.resultTitle)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .padding(.bottom, 2)
 
             ScrollView {
                 Text(proxy.resultBody)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(proxy.viewState == .error ? Color.red.opacity(0.85) : Color.white.opacity(0.95))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(proxy.viewState == .error ? Color.red.opacity(0.9) : Color.white.opacity(0.95))
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .multilineTextAlignment(.leading)
+                    .padding(16)
             }
+            .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 Button(action: {
                     proxy.onReplace?()
                 }) {
-                    Text("Replace")
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                    HStack {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("Replace")
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue.opacity(proxy.resultBody.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(.white)
                 }
                 .disabled(proxy.viewState == .loading || proxy.viewState == .error || proxy.resultBody.isEmpty)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
 
                 Button(action: {
                     proxy.onCopy?()
                 }) {
-                    Text("Copy")
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                    HStack {
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy")
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(.white)
                 }
                 .disabled(proxy.viewState == .loading || proxy.resultBody.isEmpty)
-                .buttonStyle(.bordered)
-
-                Spacer()
+                .buttonStyle(.plain)
 
                 Button(action: {
                     proxy.onBack?()
                 }) {
                     Text("Back")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
             }
             .padding(.top, 4)
         }
-        .padding(16)
-        .frame(width: 560, height: 350)
+        .padding(20)
+        .frame(width: 560, height: 360)
     }
 }
