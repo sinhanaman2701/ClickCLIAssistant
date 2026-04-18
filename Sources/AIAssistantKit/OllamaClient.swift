@@ -75,25 +75,33 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
         let box = jsonBuffer
         box.value += chunkStr
 
-        // Split on newlines — /api/generate emits one JSON object per line
-        let lines = box.value.split(separator: "\n", omittingEmptySubsequences: false)
-        guard lines.count > 1 else { return }
+        // Flush all complete newline-terminated lines immediately
+        var searchRange = box.value.startIndex
+        while let newlineRange = box.value.range(of: "\n", range: searchRange..<box.value.endIndex) {
+            let line = String(box.value[searchRange..<newlineRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            searchRange = newlineRange.upperBound
 
-        for i in 0..<(lines.count - 1) {
-            let line = String(lines[i]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !line.isEmpty, let lineData = line.data(using: .utf8) else { continue }
-
             if let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData),
                let content = decoded.response, !content.isEmpty {
                 continuation.yield(content)
             }
         }
 
-        // Retain any partial line at the end for next chunk
-        box.value = String(lines.last ?? "")
+        // Keep only whatever came after the last newline
+        box.value = String(box.value[searchRange...])
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // Flush any remaining buffered content that had no trailing newline
+        let remaining = jsonBuffer.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !remaining.isEmpty, let lineData = remaining.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData),
+           let content = decoded.response, !content.isEmpty {
+            continuation.yield(content)
+        }
+
         if let error = error {
             continuation.finish(throwing: error)
         } else {
