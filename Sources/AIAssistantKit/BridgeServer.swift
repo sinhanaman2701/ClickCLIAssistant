@@ -1,3 +1,4 @@
+#if false
 import Foundation
 import Network
 
@@ -274,3 +275,5 @@ private struct HTTPResponse {
             .replacingOccurrences(of: "\n", with: "\\n")
     }
 }
+
+#endif

@@ -56,15 +56,15 @@ public enum Installer {
             ollamaHost: host
         )
         try ConfigStore.save(config)
-        let browserExtensionDirectory = try BrowserExtensionInstaller.install()
-        let bridgeAgent = try BridgeLaunchAgent.installAndStart(from: executablePath)
+
+        // Browser extension setup disabled
+        // let browserExtensionDirectory = try BrowserExtensionInstaller.install()
+        // let bridgeAgent = try BridgeLaunchAgent.installAndStart(from: executablePath)
 
         return InstallResult(
             configPath: AppPaths.configFile.path,
             skillsDirectory: skillsDirectory.path,
-            model: model,
-            browserExtensionDirectory: browserExtensionDirectory.path,
-            bridgeAgent: bridgeAgent
+            model: model
         )
     }
 
@@ -74,28 +74,19 @@ public enum Installer {
         print("Skills directory: \(result.skillsDirectory)")
         print("Default model: \(result.model)")
         print("Add your .md skill files here: \(result.skillsDirectory)")
-        print("Browser extension directory (Chrome/Brave/Firefox): \(result.browserExtensionDirectory)")
-        print("Bridge launch agent plist: \(result.bridgeAgent.plistPath)")
-        print("Bridge auto-start: \(result.bridgeAgent.autoStartEnabled ? "enabled" : "not enabled")")
-        print("Bridge loaded now: \(result.bridgeAgent.isLoaded ? "yes" : "no")")
         print("")
-        print("Load the browser extension from that directory in Chrome/Brave/Firefox.")
-        if !result.bridgeAgent.isLoaded {
-            print("Bridge is not running automatically. Start it manually with `swift run click-assistant bridge`.")
-        }
+        print("Installation complete! Trigger the desktop assistant via the Cmd+Shift+Space hotkey.")
     }
 
     public static func doctor() async -> DoctorResult {
         let host = "http://localhost:11434"
         let reachable = await OllamaEnvironment.localOllamaReachable(host: host)
-        let bridgeStatus = BridgeLaunchAgent.status()
         return DoctorResult(
             ollamaInstalled: OllamaEnvironment.ollamaExists(),
             ollamaPath: OllamaEnvironment.ollamaPath(),
             localHostReachable: reachable,
             configPath: AppPaths.configFile.path,
-            configExists: FileManager.default.fileExists(atPath: AppPaths.configFile.path),
-            bridgeAgent: bridgeStatus
+            configExists: FileManager.default.fileExists(atPath: AppPaths.configFile.path)
         )
     }
 
@@ -181,8 +172,6 @@ public struct InstallResult: Sendable {
     public let configPath: String
     public let skillsDirectory: String
     public let model: String
-    public let browserExtensionDirectory: String
-    public let bridgeAgent: BridgeLaunchAgentStatus
 }
 
 public struct DoctorResult: Sendable {
@@ -191,21 +180,18 @@ public struct DoctorResult: Sendable {
     public let localHostReachable: Bool
     public let configPath: String
     public let configExists: Bool
-    public let bridgeAgent: BridgeLaunchAgentStatus
 
     public init(
         ollamaInstalled: Bool,
         ollamaPath: String?,
         localHostReachable: Bool,
         configPath: String,
-        configExists: Bool,
-        bridgeAgent: BridgeLaunchAgentStatus
+        configExists: Bool
     ) {
         self.ollamaInstalled = ollamaInstalled
         self.ollamaPath = ollamaPath
         self.localHostReachable = localHostReachable
         self.configPath = configPath
         self.configExists = configExists
-        self.bridgeAgent = bridgeAgent
     }
 }

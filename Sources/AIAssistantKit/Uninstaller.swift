@@ -24,11 +24,11 @@ public enum Uninstaller {
         var removedPaths: [String] = []
         let fileManager = FileManager.default
 
-        let hadLaunchAgent = fileManager.fileExists(atPath: AppPaths.launchAgentPlist.path)
-        BridgeLaunchAgent.uninstall()
-        if hadLaunchAgent {
-            removedPaths.append(AppPaths.launchAgentPlist.path)
-        }
+        // let hadLaunchAgent = fileManager.fileExists(atPath: AppPaths.launchAgentPlist.path)
+        // BridgeLaunchAgent.uninstall()
+        // if hadLaunchAgent {
+        //     removedPaths.append(AppPaths.launchAgentPlist.path)
+        // }
 
         if fileManager.fileExists(atPath: AppPaths.appSupportDirectory.path) {
             try fileManager.removeItem(at: AppPaths.appSupportDirectory)

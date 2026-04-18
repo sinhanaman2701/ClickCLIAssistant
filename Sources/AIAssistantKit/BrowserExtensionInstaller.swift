@@ -1,3 +1,4 @@
+#if false
 import Foundation
 
 public enum BrowserExtensionInstaller {
@@ -570,3 +571,5 @@ public enum BrowserExtensionInstaller {
     }
     """
 }
+
+#endif

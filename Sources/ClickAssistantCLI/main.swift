@@ -15,8 +15,8 @@ struct ClickAssistantCLI {
                 Installer.printSummary(result)
             case "run":
                 throw AppError.ollamaUnavailable("Desktop app flow is removed. Use browser extension + `click-assistant bridge`.")
-            case "bridge":
-                try await BridgeServer.run()
+            // case "bridge":
+            //     try await BridgeServer.run()
             case "doctor":
                 let result = await Installer.doctor()
                 printDoctor(result)
@@ -44,14 +44,13 @@ struct ClickAssistantCLI {
         Commands:
           install   Run setup, verify Ollama model access, save config, and install browser extension files
           run       Deprecated (desktop flow removed)
-          bridge    Start the local browser bridge on 127.0.0.1:48765
           doctor    Check Ollama and config status
           uninstall Remove ClickCLIAssistant config, skills, and the default source clone
           help      Show this message
 
         Examples:
           swift run click-assistant install
-          swift run click-assistant bridge
+          // swift run click-assistant bridge
           swift run click-assistant doctor
           swift run click-assistant uninstall
         """)
@@ -63,10 +62,6 @@ struct ClickAssistantCLI {
         print("Local Ollama reachable: \(result.localHostReachable ? "yes" : "no")")
         print("Config path: \(result.configPath)")
         print("Config exists: \(result.configExists ? "yes" : "no")")
-        print("Bridge launch agent installed: \(result.bridgeAgent.isInstalled ? "yes" : "no")")
-        print("Bridge launch agent loaded: \(result.bridgeAgent.isLoaded ? "yes" : "no")")
-        print("Bridge launch agent plist: \(result.bridgeAgent.plistPath)")
-        print("Bridge binary path: \(result.bridgeAgent.binaryPath)")
     }
 
     private static func printUninstall(_ result: UninstallResult) {

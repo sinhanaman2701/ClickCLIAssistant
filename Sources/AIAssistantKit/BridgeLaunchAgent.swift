@@ -1,3 +1,4 @@
+#if false
 import Darwin
 import Foundation
 
@@ -161,3 +162,5 @@ public enum BridgeLaunchAgent {
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 }
+
+#endif
