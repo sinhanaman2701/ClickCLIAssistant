@@ -80,7 +80,8 @@ final class AppController: ObservableObject {
         
         // Remove .hide() so we stay in the same window, just transitioning state
         isRunningSkill = true
-        launcherController.showLoading(skillName: skill.name)
+        let wordCount = selection.text.split(separator: .init(" ")).count
+        launcherController.showLoading(skillName: skill.name, wordCount: wordCount)
 
         Task {
             do {
@@ -88,8 +89,14 @@ final class AppController: ObservableObject {
                 var fullText = ""
                 var buffer = ""
                 var lastRender = Date()
+                var chunkCount = 0
                 
+                print("[AppController] Starting stream capture for text block length: \(selection.text.count)")
                 for try await chunk in stream {
+                    if chunkCount == 0 {
+                        print("[AppController] Received FIRST token: \(chunk.debugDescription)")
+                    }
+                    chunkCount += 1
                     fullText += chunk
                     buffer += chunk
                     
@@ -103,6 +110,7 @@ final class AppController: ObservableObject {
                     }
                 }
                 
+                print("[AppController] Stream finished successfully. Total chunks: \(chunkCount)")
                 // Flush any remaining
                 if !buffer.isEmpty {
                     let toRender = buffer
@@ -117,6 +125,7 @@ final class AppController: ObservableObject {
                     self.launcherController.finishStreaming()
                 }
             } catch {
+                print("[AppController] Stream execution failed! Error: \(error.localizedDescription)")
                 await MainActor.run {
                     self.isRunningSkill = false
                     self.lastOutput = ""

@@ -54,9 +54,9 @@ final class LauncherWindowController: NSWindowController {
         }
     }
 
-    func showLoading(skillName: String) {
+    func showLoading(skillName: String, wordCount: Int) {
         proxy.resultTitle = skillName
-        proxy.resultBody = "Thinking..."
+        proxy.resultBody = "Thinking...\n(Ingesting \(wordCount) words)"
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             proxy.viewState = .loading
