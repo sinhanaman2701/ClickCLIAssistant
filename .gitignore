@@ -6,3 +6,9 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Temporary/Sensitive files
+scratch/
+test_*.swift
+config.json
+.ai-assistant/
