@@ -267,15 +267,15 @@ private struct LauncherRootView: View {
                 resultView.transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
             }
         }
+        .environment(\.colorScheme, .dark)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black.opacity(0.45))
-                .background(.ultraThinMaterial)
+                .fill(.regularMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
         )
     }
 
@@ -283,13 +283,13 @@ private struct LauncherRootView: View {
     private var skillsView: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: "sparkles.magnifyingglass")
+                Image(systemName: "magnifyingglass")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.9))
+                    .foregroundStyle(.secondary)
                 TextField("Use Skill", text: $proxy.query)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 22, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary)
                     .focused($searchFocused)
                     .onSubmit {
                         proxy.submitSelection()
@@ -297,7 +297,11 @@ private struct LauncherRootView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+            )
 
             if let status = proxy.status {
                 Text(status)
@@ -315,14 +319,14 @@ private struct LauncherRootView: View {
                                 proxy.onSelect?(skill)
                             } label: {
                                 Text(skill.name)
-                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    .font(.system(size: 17, weight: index == proxy.selectedIndex ? .semibold : .medium, design: .rounded))
+                                    .foregroundStyle(.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 18)
-                                    .padding(.vertical, 14)
+                                    .padding(.vertical, 12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(index == proxy.selectedIndex ? Color.white.opacity(0.2) : Color.clear)
+                                            .fill(index == proxy.selectedIndex ? Color.accentColor : Color.clear)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -351,13 +355,13 @@ private struct LauncherRootView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .foregroundStyle(.white)
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
         }
         .padding(18)
-        .frame(width: 560, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
