@@ -96,7 +96,7 @@ public enum Installer {
             print("")
             let modelIdx = TerminalUI.select(
                 options: [
-                    "gemini-3-flash-preview:cloud (recommended for large files)",
+                    "gemini-3-flash-preview:cloud (recommended)",
                     "Use some other model..."
                 ],
                 title: "Which model?"
