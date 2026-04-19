@@ -167,8 +167,12 @@ final class LauncherWindowController: NSWindowController {
     }
 
     func showLoading(skillName: String, wordCount: Int) {
-        proxy.resultTitle = skillName
-        proxy.resultBody = "Thinking...\n(Ingesting \(wordCount) words)"
+        proxy.resultTitle = "Executing \(skillName)..."
+        var body = "Processing \(wordCount) words..."
+        if wordCount > 2000 {
+            body += "\n\nNote: Large documents take longer for the cloud to ingest. This can take up to 2 minutes—please stay on this screen."
+        }
+        proxy.resultBody = body
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             proxy.viewState = .loading
