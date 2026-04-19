@@ -11,14 +11,14 @@ public enum Installer {
 
         print("")
         print("Click Assistant setup")
-        print("How would you like to run AI inference?")
-        print("  [1] Local Ollama  — Free, offline, uses local models.")
-        print("                      ⚠ Cloud models (.:cloud) may be slow locally.")
-        print("  [2] Ollama API Key — Calls https://ollama.com/api directly.")
-        print("                      Free tier, fast response, requires internet.")
-        print("")
-        
-        let modeSelection = prompt("Choose 1 or 2", defaultValue: "2")
+        let modeIdx = TerminalUI.select(
+            options: [
+                "Local Ollama  — Free, offline, uses local models.",
+                "Ollama API Key — Direct cloud access (Fastest for large docs)"
+            ],
+            title: "How would you like to run AI inference?"
+        )
+        let modeSelection = modeIdx == 0 ? "1" : "2"
 
         let setupMode: AppConfig.SetupMode
         var apiKey: String? = nil
@@ -93,13 +93,16 @@ public enum Installer {
             }
             
             print("")
-            print("Which model?")
-            print("  [1] gemini-3-flash-preview:cloud (recommended for large files)")
-            print("  [2] Use some other model")
             print("")
+            let modelIdx = TerminalUI.select(
+                options: [
+                    "gemini-3-flash-preview:cloud (recommended for large files)",
+                    "Use some other model..."
+                ],
+                title: "Which model?"
+            )
             
-            let modelChoice = prompt("Choose 1 or 2", defaultValue: "1")
-            if modelChoice == "1" {
+            if modelIdx == 0 {
                 model = "gemini-3-flash-preview:cloud"
             } else {
                 let modelCommand = prompt(
