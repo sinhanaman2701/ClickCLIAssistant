@@ -155,8 +155,13 @@ final class AppController: ObservableObject {
     }
 
     private func run(skill: Skill) {
-        guard !isRunningSkill else { return }
+        print("[AppController] Attempting to run skill: \(skill.name)")
+        if isRunningSkill {
+            print("[AppController] Skill already running, ignoring request.")
+            return
+        }
         guard let selection = currentSelection else {
+            print("[AppController] No current selection, cannot run skill.")
             launcherController.show(skills: skillStore.skills, status: "No selected text available.")
             return
         }
