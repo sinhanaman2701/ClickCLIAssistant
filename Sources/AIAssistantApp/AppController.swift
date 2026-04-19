@@ -16,6 +16,7 @@ final class AppController: ObservableObject {
     private var hotKeyMonitor: GlobalHotKeyMonitor?
     private var lastOutput: String = ""
     private var isRunningSkill = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(config: AppConfig) throws {
         self.config = config
@@ -31,6 +32,13 @@ final class AppController: ObservableObject {
     func start() {
         _ = SelectionReader.accessibilityTrusted(promptIfNeeded: true)
         skillStore.start()
+        
+        skillStore.$skills
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newSkills in
+                self?.launcherController.proxy.skills = newSkills
+            }
+            .store(in: &cancellables)
         
         launcherController.bind { [weak self] skill in
             self?.run(skill: skill)

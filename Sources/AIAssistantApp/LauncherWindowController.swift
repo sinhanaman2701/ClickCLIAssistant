@@ -312,7 +312,9 @@ final class LauncherProxyController: ObservableObject {
     @Published var query = "" {
         didSet { onStateOrQueryChange?() }
     }
-    @Published var skills: [Skill] = []
+    @Published var skills: [Skill] = [] {
+        didSet { onStateOrQueryChange?() }
+    }
     @Published var status: String?
     @Published var selectedIndex = 0
 
