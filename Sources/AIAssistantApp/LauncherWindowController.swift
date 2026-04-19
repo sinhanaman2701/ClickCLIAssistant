@@ -3,30 +3,78 @@ import AIAssistantKit
 import Combine
 import SwiftUI
 
-// Removes the default NSTextView inset so TextEditor cursor
-// aligns with SwiftUI placeholder overlays.
-private extension View {
-    func textEditorInset(_ inset: CGFloat) -> some View {
-        self.background(
-            TextEditorInsetHelper(inset: inset)
+// A native NSTextView wrapper with built-in placeholder support.
+private class PlaceholderTextView: NSTextView {
+    var placeholder: String = "" {
+        didSet { needsDisplay = true }
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard string.isEmpty else { return }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font ?? NSFont.systemFont(ofSize: 15),
+            .foregroundColor: NSColor.tertiaryLabelColor
+        ]
+        NSString(string: placeholder).draw(
+            in: bounds.insetBy(dx: 2, dy: 4),
+            withAttributes: attrs
         )
     }
 }
 
-private struct TextEditorInsetHelper: NSViewRepresentable {
-    let inset: CGFloat
-    func makeNSView(context: Context) -> NSView { NSView() }
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            // Walk up the view hierarchy to find the NSTextView
-            var view: NSView? = nsView
-            while let v = view {
-                if let tv = v as? NSTextView {
-                    tv.textContainerInset = NSSize(width: inset, height: inset)
-                    break
-                }
-                view = v.superview
-            }
+private struct NativeTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String = ""
+    var font: NSFont = .systemFont(ofSize: 15)
+    var isDisabled: Bool = false
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+
+        let textView = PlaceholderTextView()
+        textView.placeholder = placeholder
+        textView.delegate = context.coordinator
+        textView.isEditable = !isDisabled
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.font = font
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? PlaceholderTextView else { return }
+        textView.isEditable = !isDisabled
+        textView.font = font
+        textView.placeholder = placeholder
+        if textView.string != text {
+            textView.string = text
+            textView.needsDisplay = true
+        }
+    }
+
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: NativeTextEditor
+        init(_ parent: NativeTextEditor) { self.parent = parent }
+        func textDidChange(_ notification: Notification) {
+            guard let tv = notification.object as? NSTextView else { return }
+            parent.text = tv.string
+            tv.needsDisplay = true
         }
     }
 }
@@ -514,31 +562,12 @@ private struct LauncherRootView: View {
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
 
-            ZStack(alignment: .topLeading) {
-                if #available(macOS 13.0, *) {
-                    TextEditor(text: $proxy.newSkillDescription)
-                        .scrollContentBackground(.hidden)
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .focused($createInputFocused)
-                        .disabled(proxy.viewState == .createGenerating)
-                        .textEditorInset(0)
-                } else {
-                    TextEditor(text: $proxy.newSkillDescription)
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .focused($createInputFocused)
-                        .disabled(proxy.viewState == .createGenerating)
-                        .textEditorInset(0)
-                }
-
-                if proxy.newSkillDescription.isEmpty {
-                    Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(Color.primary.opacity(0.35))
-                        .allowsHitTesting(false)
-                }
-            }
+            NativeTextEditor(
+                text: $proxy.newSkillDescription,
+                placeholder: "e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.",
+                font: .systemFont(ofSize: 15),
+                isDisabled: proxy.viewState == .createGenerating
+            )
             .padding(12)
             .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -608,20 +637,12 @@ private struct LauncherRootView: View {
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                 
-                ZStack(alignment: .topLeading) {
-                    if #available(macOS 13.0, *) {
-                        TextEditor(text: $proxy.newSkillPrompt)
-                            .scrollContentBackground(.hidden)
-                            .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .textEditorInset(0)
-                    } else {
-                        TextEditor(text: $proxy.newSkillPrompt)
-                            .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .textEditorInset(0)
-                    }
-                }
+                NativeTextEditor(
+                    text: $proxy.newSkillPrompt,
+                    placeholder: "",
+                    font: .monospacedSystemFont(ofSize: 14, weight: .regular),
+                    isDisabled: false
+                )
                 .padding(8)
                 .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
