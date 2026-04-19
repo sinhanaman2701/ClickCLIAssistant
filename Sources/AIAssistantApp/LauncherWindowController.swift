@@ -16,7 +16,7 @@ private class PlaceholderTextView: NSTextView {
             .foregroundColor: NSColor.tertiaryLabelColor
         ]
         NSString(string: placeholder).draw(
-            in: bounds.insetBy(dx: 2, dy: 4),
+            in: bounds,
             withAttributes: attrs
         )
     }
