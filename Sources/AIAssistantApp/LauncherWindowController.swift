@@ -425,6 +425,7 @@ private struct LauncherRootView: View {
                     if !proxy.filteredSkills.isEmpty {
                         ForEach(Array(proxy.filteredSkills.enumerated()), id: \.element.id) { index, skill in
                             Button {
+                                proxy.selectedIndex = index
                                 proxy.onSelect?(skill)
                             } label: {
                                 Text(skill.name)
@@ -439,6 +440,11 @@ private struct LauncherRootView: View {
                                     )
                             }
                             .buttonStyle(.plain)
+                            .onHover { hovering in
+                                if hovering {
+                                    proxy.selectedIndex = index
+                                }
+                            }
                         }
                     } else {
                         Text("No matching skills")
