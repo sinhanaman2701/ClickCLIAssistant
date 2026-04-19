@@ -254,14 +254,8 @@ final class AppController: ObservableObject {
     }
 
     private func isReasonableSelection(_ text: String) -> Bool {
-        if text.utf16.count > 12_000 { return false }
-        var lines = 1
-        for scalar in text.unicodeScalars {
-            if scalar == "\n" {
-                lines += 1
-                if lines >= 1_500 { return false }
-            }
-        }
+        // Limits removed as per user request. 
+        // Note: Very large selections may take longer to process and hit model context limits.
         return true
     }
 }
