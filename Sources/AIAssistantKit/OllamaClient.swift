@@ -25,7 +25,7 @@ public struct OllamaClient: Sendable {
 
     public func generateSkillPrompt(description: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
+            let url = host.appending(path: "/api/generate")
             var request = URLRequest(url: url, timeoutInterval: 30)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -64,7 +64,7 @@ public struct OllamaClient: Sendable {
 
     public func transform(text: String, using skill: Skill) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
+            let url = host.appending(path: "/api/generate")
             var request = URLRequest(url: url, timeoutInterval: 30)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
