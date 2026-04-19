@@ -86,7 +86,11 @@ public struct OllamaClient: Sendable {
 
                     Selected text:
                     \(text)
-                    """
+                    """,
+                    options: [
+                        "num_ctx": AnyEncodable(32768), // Request 32k context window to handle large documentation tasks
+                        "temperature": AnyEncodable(0.3)
+                    ]
                 ))
             } catch {
                 continuation.finish(throwing: error)
@@ -115,6 +119,8 @@ public struct OllamaClient: Sendable {
 private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Sendable {
     let continuation: AsyncThrowingStream<String, Error>.Continuation
     private let jsonBuffer = UnsafeMutableTransferBox("")
+    private let errorBuffer = UnsafeMutableTransferBox("")
+    private var statusCode: Int = 200
     private let httpError = UnsafeMutableErrorBox()
 
     init(continuation: AsyncThrowingStream<String, Error>.Continuation) {
@@ -122,16 +128,18 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
-            let status = httpResponse.statusCode
-            httpError.error = AppError.ollamaUnavailable("Ollama returned HTTP \(status)")
-            completionHandler(.cancel)
-            return
+        if let httpResponse = response as? HTTPURLResponse {
+            self.statusCode = httpResponse.statusCode
         }
         completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        if !(200..<300).contains(statusCode) {
+            errorBuffer.value += String(data: data, encoding: .utf8) ?? ""
+            return
+        }
+
         guard let chunkStr = String(data: data, encoding: .utf8) else { return }
 
         let box = jsonBuffer
@@ -157,6 +165,13 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if !(200..<300).contains(statusCode) {
+            let serverMessage = errorBuffer.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = serverMessage.isEmpty ? "No error details from server" : serverMessage
+            continuation.finish(throwing: AppError.ollamaUnavailable("Server returned HTTP \(statusCode): \(detail)"))
+            return
+        }
+
         // Flush any remaining buffered content that had no trailing newline
         let remaining = jsonBuffer.value.trimmingCharacters(in: .whitespacesAndNewlines)
         if !remaining.isEmpty, let lineData = remaining.data(using: .utf8),
@@ -192,6 +207,19 @@ private struct GenerateRequest: Encodable {
     let system: String
     let prompt: String
     let stream = true
+    let options: [String: AnyEncodable]?
+}
+
+struct AnyEncodable: Encodable {
+    private let _encode: @Sendable (Encoder) throws -> Void
+
+    init<T: Encodable & Sendable>(_ value: T) {
+        _encode = { try value.encode(to: $0) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try _encode(encoder)
+    }
 }
 
 private struct GenerateResponse: Decodable {
