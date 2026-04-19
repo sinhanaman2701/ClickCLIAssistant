@@ -43,7 +43,8 @@ public struct OllamaClient: Sendable {
                     Output ONLY the raw prompt instructions. Do NOT include markdown fences, preambles, or explanations. 
                     Be rigorous, clear, and establish strict bounds for the output.
                     """,
-                    prompt: description
+                    prompt: description,
+                    options: nil
                 ))
             } catch {
                 continuation.finish(throwing: error)
@@ -120,7 +121,7 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
     let continuation: AsyncThrowingStream<String, Error>.Continuation
     private let jsonBuffer = UnsafeMutableTransferBox("")
     private let errorBuffer = UnsafeMutableTransferBox("")
-    private var statusCode: Int = 200
+    private let statusCode = UnsafeMutableIntBox(200)
     private let httpError = UnsafeMutableErrorBox()
 
     init(continuation: AsyncThrowingStream<String, Error>.Continuation) {
@@ -129,13 +130,13 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         if let httpResponse = response as? HTTPURLResponse {
-            self.statusCode = httpResponse.statusCode
+            self.statusCode.value = httpResponse.statusCode
         }
         completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if !(200..<300).contains(statusCode) {
+        if !(200..<300).contains(statusCode.value) {
             errorBuffer.value += String(data: data, encoding: .utf8) ?? ""
             return
         }
@@ -165,10 +166,10 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if !(200..<300).contains(statusCode) {
+        if !(200..<300).contains(statusCode.value) {
             let serverMessage = errorBuffer.value.trimmingCharacters(in: .whitespacesAndNewlines)
             let detail = serverMessage.isEmpty ? "No error details from server" : serverMessage
-            continuation.finish(throwing: AppError.ollamaUnavailable("Server returned HTTP \(statusCode): \(detail)"))
+            continuation.finish(throwing: AppError.ollamaUnavailable("Server returned HTTP \(statusCode.value): \(detail)"))
             return
         }
 
@@ -195,6 +196,11 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
 private final class UnsafeMutableTransferBox: @unchecked Sendable {
     var value: String
     init(_ value: String) { self.value = value }
+}
+
+private final class UnsafeMutableIntBox: @unchecked Sendable {
+    var value: Int
+    init(_ value: Int) { self.value = value }
 }
 
 private final class UnsafeMutableErrorBox: @unchecked Sendable {
