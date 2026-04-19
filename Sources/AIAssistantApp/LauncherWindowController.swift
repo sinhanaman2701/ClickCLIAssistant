@@ -527,34 +527,17 @@ private struct LauncherRootView: View {
 
             HStack(spacing: 12) {
                 Button(action: {
-                    proxy.onReplace?()
+                    proxy.onCopy?()
                 }) {
                     HStack {
-                        Image(systemName: "arrow.left.arrow.right")
-                        Text("Replace")
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy to Clipboard")
                     }
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
                     .background(Color.blue.opacity(proxy.resultBody.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .foregroundStyle(.white)
-                }
-                .disabled(proxy.viewState == .loading || proxy.viewState == .error || proxy.resultBody.isEmpty)
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    proxy.onCopy?()
-                }) {
-                    HStack {
-                        Image(systemName: "doc.on.doc")
-                        Text("Copy")
-                    }
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .foregroundStyle(.white)
                 }
                 .disabled(proxy.viewState == .loading || proxy.resultBody.isEmpty)
@@ -565,7 +548,7 @@ private struct LauncherRootView: View {
                 }) {
                     Text("Back")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 24)
                         .padding(.vertical, 10)
                         .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .foregroundStyle(.white)
