@@ -475,10 +475,18 @@ private struct LauncherRootView: View {
                             }
                         }
                     } else {
-                        Text("No matching skills")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .padding(.top, 8)
+                        VStack(spacing: 12) {
+                            Text(proxy.query.isEmpty ? "Welcome!" : "No matching skills")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text(proxy.query.isEmpty ? "Select some text and click 'Create New Skill' below to get started." : "Try a different search term.")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                        .padding(.vertical, 40)
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.top, 4)

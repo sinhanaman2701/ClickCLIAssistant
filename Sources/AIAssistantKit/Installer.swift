@@ -7,7 +7,7 @@ public enum Installer {
         let skillsDirectory = AppPaths.appSupportDirectory.appendingPathComponent("skills", isDirectory: true)
         try AppPaths.ensureBaseDirectory()
         try FileManager.default.createDirectory(at: skillsDirectory, withIntermediateDirectories: true)
-        try ensureSampleSkill(in: skillsDirectory)
+        // Removed sample skill creation to allow users to start fresh with zero skills
 
         print("")
         print("Click Assistant setup")
@@ -204,31 +204,6 @@ public enum Installer {
         if let best = local.first { return best }
         // Fall back to cloud models if that's all we have
         return models.first ?? "kimi-k2.5:cloud"
-    }
-
-    private static func ensureSampleSkill(in directory: URL) throws {
-        let sample = directory.appendingPathComponent("Grammar skill.md")
-        guard !FileManager.default.fileExists(atPath: sample.path) else { return }
-
-        let contents = """
-        # Grammar skill
-
-        ## Description
-        Correct the grammar of the selected text and return only the corrected text.
-
-        ## Prompt
-        You are a grammar correction assistant.
-
-        Correct the grammar, spelling, punctuation, and basic sentence flow of the selected text.
-
-        Rules:
-        - Return only the corrected text.
-        - Do not explain the changes.
-        - Do not add headings, labels, or commentary.
-        - Preserve the original meaning and tone as much as possible.
-        - Make minimal changes unless grammar requires otherwise.
-        """
-        try contents.write(to: sample, atomically: true, encoding: .utf8)
     }
 
     private static func prompt(_ label: String, defaultValue: String) -> String {
