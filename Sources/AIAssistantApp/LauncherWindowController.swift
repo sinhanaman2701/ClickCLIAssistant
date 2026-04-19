@@ -253,6 +253,7 @@ final class LauncherProxyController: ObservableObject {
 private struct LauncherRootView: View {
     @ObservedObject var proxy: LauncherProxyController
     @FocusState private var searchFocused: Bool
+    @FocusState private var createInputFocused: Bool
 
     var body: some View {
         Group {
@@ -474,17 +475,17 @@ private struct LauncherRootView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Create New Skill")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             
             Text("Describe what you want this skill to do in natural language.")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.8))
+                .foregroundStyle(.secondary)
 
             ZStack(alignment: .topLeading) {
                 if proxy.newSkillDescription.isEmpty {
                     Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
                         .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.3))
+                        .foregroundStyle(Color.primary.opacity(0.35))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 8)
                 }
@@ -492,19 +493,24 @@ private struct LauncherRootView: View {
                     TextField("", text: $proxy.newSkillDescription, axis: .vertical)
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(5...8)
+                        .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
                 } else {
                     TextEditor(text: $proxy.newSkillDescription)
                         .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
+                        .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
                 }
             }
             .padding(12)
-            .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onTapGesture {
+                createInputFocused = true
+            }
 
             HStack(spacing: 12) {
                 Button(action: {
@@ -519,7 +525,7 @@ private struct LauncherRootView: View {
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
-                    .background(Color.blue.opacity(proxy.newSkillDescription.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color.accentColor.opacity(proxy.newSkillDescription.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .foregroundStyle(.white)
                 }
                 .disabled(proxy.viewState == .createGenerating || proxy.newSkillDescription.isEmpty)
@@ -532,8 +538,8 @@ private struct LauncherRootView: View {
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .foregroundStyle(.white)
+                        .background(Color.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.primary)
                 }
                 .disabled(proxy.viewState == .createGenerating)
                 .buttonStyle(.plain)
@@ -542,6 +548,9 @@ private struct LauncherRootView: View {
         }
         .padding(20)
         .frame(width: 560, height: 420)
+        .onAppear {
+            createInputFocused = true
+        }
     }
 
     @ViewBuilder
@@ -549,39 +558,39 @@ private struct LauncherRootView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Review & Save Skill")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
 
             HStack {
                 Text("Name:")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.secondary)
                 TextField("e.g. Spanish Translator", text: $proxy.newSkillName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .padding(8)
-                    .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Generated Prompt:")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.secondary)
                 
                 if #available(macOS 13.0, *) {
                     TextField("", text: $proxy.newSkillPrompt, axis: .vertical)
                         .textFieldStyle(.plain)
                         .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .padding(12)
-                        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     TextEditor(text: $proxy.newSkillPrompt)
                         .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .padding(12)
-                        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -607,8 +616,8 @@ private struct LauncherRootView: View {
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .foregroundStyle(.white)
+                        .background(Color.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
             }
