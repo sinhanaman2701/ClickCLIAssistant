@@ -8,6 +8,33 @@ private class PlaceholderTextView: NSTextView {
     var placeholder: String = "" {
         didSet { needsDisplay = true }
     }
+
+    // The panel uses .nonactivatingPanel so it never becomes key window.
+    // That prevents Cmd+V/C/X/A from reaching the responder chain.
+    // We intercept them manually here.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.command) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        switch event.charactersIgnoringModifiers {
+        case "v":
+            return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
+        case "c":
+            return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self)
+        case "x":
+            return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: self)
+        case "a":
+            return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: self)
+        case "z":
+            if event.modifierFlags.contains(.shift) {
+                return NSApp.sendAction(Selector(("redo:")), to: nil, from: self)
+            }
+            return NSApp.sendAction(Selector(("undo:")), to: nil, from: self)
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard string.isEmpty else { return }
