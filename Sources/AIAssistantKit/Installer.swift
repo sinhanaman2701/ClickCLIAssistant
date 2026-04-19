@@ -13,72 +13,20 @@ public enum Installer {
         print("Click Assistant setup")
         let modeIdx = TerminalUI.select(
             options: [
-                "Local Ollama  — Free, offline, uses local models.",
-                "Ollama API Key — Direct cloud access (Fastest for large docs)"
+                "Ollama API Key — Works on free tier, fastest for large docs"
             ],
             title: "How would you like to run AI inference?"
         )
-        let modeSelection = modeIdx == 0 ? "1" : "2"
+        let modeSelection = "2" // Always use API Key mode for now
 
         let setupMode: AppConfig.SetupMode
         var apiKey: String? = nil
         let model: String
         
         if modeSelection == "1" {
-            setupMode = .localOllama
-            
-            try ensureOllamaInstalled()
-            guard let ollamaPath = OllamaEnvironment.ollamaPath() else {
-                throw AppError.ollamaUnavailable("Could not resolve the `ollama` executable.")
-            }
-
-            // Auto-detect installed models and show them
-            let installedModels = detectInstalledModels(ollamaPath: ollamaPath)
-            let smartDefault = pickBestModel(from: installedModels)
-
-            if !installedModels.isEmpty {
-                print("")
-                print("Detected Ollama models:")
-                for m in installedModels { print("  - \(m)") }
-            }
-
-            print("")
-            let modelCommand = prompt(
-                "Paste your Ollama model command (or just the model name)",
-                defaultValue: "ollama run \(smartDefault)"
-            )
-            model = try parseModel(from: modelCommand)
-
-            print("")
-            print("Verifying model \(model)...")
-            var verifyResult = OllamaEnvironment.run(
-                ollamaPath,
-                ["run", model, "Reply with only OK"]
-            )
-
-            if verifyResult.status != 0, model.hasSuffix(":cloud") {
-                print("Verification failed. Attempting `ollama signin` and retrying...")
-                let signInStatus = OllamaEnvironment.runInteractive(ollamaPath, ["signin"])
-                guard signInStatus == 0 else {
-                    throw AppError.ollamaUnavailable("`ollama signin` did not complete successfully.")
-                }
-                verifyResult = OllamaEnvironment.run(
-                    ollamaPath,
-                    ["run", model, "Reply with only OK"]
-                )
-            }
-
-            guard verifyResult.status == 0 else {
-                let detail = verifyResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
-                throw AppError.ollamaUnavailable(
-                    detail.isEmpty ? "Model verification failed for \(model)." : detail
-                )
-            }
-            
-            let reachable = await OllamaEnvironment.localOllamaReachable(host: host)
-            guard reachable else {
-                throw AppError.ollamaUnavailable("Local Ollama is still not reachable at \(host) after verification.")
-            }
+            // Local mode removed per user request.
+            setupMode = .apiKey // Fallback (should not be reached)
+            model = "gemini-3-flash-preview:cloud" 
         } else {
             setupMode = .apiKey
             print("")
