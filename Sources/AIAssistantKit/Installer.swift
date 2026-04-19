@@ -94,15 +94,20 @@ public enum Installer {
             
             print("")
             print("Which model?")
-            print("ℹ We recommend: gemini-3-flash-preview:cloud (best for large documents)")
-            print("  (Note: This model is resource-heavy. You are free to use any other Ollama cloud model.)")
-            print("  You can find more models on ollama.com by looking for their `ollama run` command.")
+            print("  [1] gemini-3-flash-preview:cloud (recommended for large files)")
+            print("  [2] Use some other model")
+            print("")
             
-            let modelCommand = prompt(
-                "Model (paste the command or just the name)",
-                defaultValue: "gemini-3-flash-preview:cloud"
-            )
-            model = try parseModel(from: modelCommand)
+            let modelChoice = prompt("Choose 1 or 2", defaultValue: "1")
+            if modelChoice == "1" {
+                model = "gemini-3-flash-preview:cloud"
+            } else {
+                let modelCommand = prompt(
+                    "Paste the cloud model command (e.g. ollama run kimi-k2.5:cloud)",
+                    defaultValue: "ollama run kimi-k2.5:cloud"
+                )
+                model = try parseModel(from: modelCommand)
+            }
             
             print("")
             print("Verifying API key... ", terminator: "")
