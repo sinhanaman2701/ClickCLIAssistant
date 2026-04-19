@@ -107,9 +107,10 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
             searchRange = newlineRange.upperBound
 
             guard !line.isEmpty, let lineData = line.data(using: .utf8) else { continue }
-            if let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData),
-               let content = decoded.response, !content.isEmpty {
-                continuation.yield(content)
+            if let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData) {
+                if let content = decoded.response, !content.isEmpty {
+                    continuation.yield(content)
+                }
             }
         }
 
@@ -121,9 +122,10 @@ private final class OllamaStreamDelegate: NSObject, URLSessionDataDelegate, Send
         // Flush any remaining buffered content that had no trailing newline
         let remaining = jsonBuffer.value.trimmingCharacters(in: .whitespacesAndNewlines)
         if !remaining.isEmpty, let lineData = remaining.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData),
-           let content = decoded.response, !content.isEmpty {
-            continuation.yield(content)
+           let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: lineData) {
+            if let content = decoded.response, !content.isEmpty {
+                continuation.yield(content)
+            }
         }
 
         let finalError = httpError.error ?? error
@@ -156,5 +158,6 @@ private struct GenerateRequest: Encodable {
 
 private struct GenerateResponse: Decodable {
     let response: String?
+    let thinking: String?
     let done: Bool?
 }

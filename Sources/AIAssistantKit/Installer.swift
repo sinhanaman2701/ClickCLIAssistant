@@ -82,24 +82,24 @@ public enum Installer {
         } else {
             setupMode = .apiKey
             print("")
-            print("ℹ To get your API key:")
+            print("What is your Ollama API Key?")
+            print("ℹ To get a free API key:")
             print("   1. Sign in or create an account at https://ollama.com")
             print("   2. Go to Settings -> API Keys -> Generate new key")
             
-            print("")
-            apiKey = prompt("Paste your Ollama API key", defaultValue: "")
+            apiKey = prompt("API Key", defaultValue: "")
             if apiKey?.isEmpty == true {
                 throw AppError.ollamaUnavailable("API key cannot be empty.")
             }
             
             print("")
-            print("ℹ You can find available models on ollama.com")
-            print("   For example: go to a model page (like qwen2.5)")
-            print("   and look for the run command (e.g. `ollama run qwen2.5`)")
+            print("Which model?")
+            print("ℹ We recommend gemma3:27b-cloud or qwen2.5 for fast response times.")
+            print("  You can find more models on ollama.com by looking for their `ollama run` command.")
             
             let modelCommand = prompt(
-                "Which model? (paste the command or just the name)",
-                defaultValue: "kimi-k2.5:cloud"
+                "Model (paste the command or just the name)",
+                defaultValue: "gemma3:27b-cloud"
             )
             model = try parseModel(from: modelCommand)
             

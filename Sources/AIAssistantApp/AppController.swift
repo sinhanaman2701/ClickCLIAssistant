@@ -55,11 +55,15 @@ final class AppController: ObservableObject {
     }
 
     private func showLauncher() async {
+        let launchStart = Date()
+        try? String("[\(Date())] Triggering showLauncher...\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
+        
         guard SelectionReader.accessibilityTrusted() else {
             launcherController.show(skills: skillStore.skills, status: "Enable Accessibility permission for this app first.")
             return
         }
 
+        try? String("[\(Date())] Starting SelectionReader... (+ \(-launchStart.timeIntervalSinceNow)s)\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
         guard let snapshot = await SelectionReader.currentSelectionWithClipboardFallback(),
               isReasonableSelection(snapshot.text) else {
             currentSelection = nil
@@ -68,6 +72,7 @@ final class AppController: ObservableObject {
         }
 
         currentSelection = snapshot
+        try? String("[\(Date())] Selection gathered! Length: \(snapshot.text.count) (+ \(-launchStart.timeIntervalSinceNow)s)\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
         launcherController.show(skills: skillStore.skills, status: nil)
     }
 
@@ -84,6 +89,8 @@ final class AppController: ObservableObject {
         launcherController.showLoading(skillName: skill.name, wordCount: wordCount)
 
         Task {
+            let runStart = Date()
+            try? String("[\(Date())] Calling OllamaClient.transform... (+ \(-runStart.timeIntervalSinceNow)s)\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
             do {
                 let stream = ollamaClient.transform(text: selection.text, using: skill)
                 var fullText = ""
@@ -94,6 +101,7 @@ final class AppController: ObservableObject {
                 print("[AppController] Starting stream capture for text block length: \(selection.text.count)")
                 for try await chunk in stream {
                     if chunkCount == 0 {
+                        try? String("[\(Date())] Received FIRST token: \(chunk.debugDescription) (+ \(-runStart.timeIntervalSinceNow)s)\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
                         print("[AppController] Received FIRST token: \(chunk.debugDescription)")
                     }
                     chunkCount += 1
@@ -110,6 +118,7 @@ final class AppController: ObservableObject {
                     }
                 }
                 
+                try? String("[\(Date())] Stream finished successfully. Total chunks: \(chunkCount) (+ \(-runStart.timeIntervalSinceNow)s)\n").write(toFile: "/tmp/app_flow.log", atomically: false, encoding: .utf8)
                 print("[AppController] Stream finished successfully. Total chunks: \(chunkCount)")
                 // Flush any remaining
                 if !buffer.isEmpty {
