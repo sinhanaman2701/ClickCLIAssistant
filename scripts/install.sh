@@ -24,8 +24,9 @@ if ! command -v swift >/dev/null 2>&1; then
 fi
 
 if [ -d "${INSTALL_DIR}/.git" ]; then
-  echo "Updating existing repository at ${INSTALL_DIR}"
-  git -C "${INSTALL_DIR}" pull --ff-only
+  echo "Existing installation found. Updating to latest version..."
+  git -C "${INSTALL_DIR}" fetch --all
+  git -C "${INSTALL_DIR}" reset --hard origin/main
 else
   echo "Cloning repository to ${INSTALL_DIR}"
   git clone "${REPO_URL}" "${INSTALL_DIR}"
