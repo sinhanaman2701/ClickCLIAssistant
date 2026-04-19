@@ -3,6 +3,34 @@ import AIAssistantKit
 import Combine
 import SwiftUI
 
+// Removes the default NSTextView inset so TextEditor cursor
+// aligns with SwiftUI placeholder overlays.
+private extension View {
+    func textEditorInset(_ inset: CGFloat) -> some View {
+        self.background(
+            TextEditorInsetHelper(inset: inset)
+        )
+    }
+}
+
+private struct TextEditorInsetHelper: NSViewRepresentable {
+    let inset: CGFloat
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            // Walk up the view hierarchy to find the NSTextView
+            var view: NSView? = nsView
+            while let v = view {
+                if let tv = v as? NSTextView {
+                    tv.textContainerInset = NSSize(width: inset, height: inset)
+                    break
+                }
+                view = v.superview
+            }
+        }
+    }
+}
+
 final class LauncherPanel: NSPanel {
     override var canBecomeKey: Bool { return true }
     override var canBecomeMain: Bool { return true }
@@ -494,20 +522,20 @@ private struct LauncherRootView: View {
                         .foregroundStyle(.primary)
                         .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
+                        .textEditorInset(0)
                 } else {
                     TextEditor(text: $proxy.newSkillDescription)
                         .font(.system(size: 15, design: .rounded))
                         .foregroundStyle(.primary)
                         .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
+                        .textEditorInset(0)
                 }
-                
+
                 if proxy.newSkillDescription.isEmpty {
                     Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
                         .font(.system(size: 15, design: .rounded))
                         .foregroundStyle(Color.primary.opacity(0.35))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 8)
                         .allowsHitTesting(false)
                 }
             }
@@ -586,10 +614,12 @@ private struct LauncherRootView: View {
                             .scrollContentBackground(.hidden)
                             .font(.system(size: 14, design: .monospaced))
                             .foregroundStyle(.primary)
+                            .textEditorInset(0)
                     } else {
                         TextEditor(text: $proxy.newSkillPrompt)
                             .font(.system(size: 14, design: .monospaced))
                             .foregroundStyle(.primary)
+                            .textEditorInset(0)
                     }
                 }
                 .padding(8)
