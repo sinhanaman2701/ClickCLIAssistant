@@ -26,7 +26,7 @@ public struct OllamaClient: Sendable {
     public func generateSkillPrompt(description: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
-            var request = URLRequest(url: url, timeoutInterval: 30)
+            var request = URLRequest(url: url, timeoutInterval: 120)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             if let apiKey = apiKey {
@@ -52,8 +52,8 @@ public struct OllamaClient: Sendable {
             }
 
             let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = 30
-            config.timeoutIntervalForResource = 60
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 120
             
             let delegate = OllamaStreamDelegate(continuation: continuation)
             let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
@@ -65,7 +65,7 @@ public struct OllamaClient: Sendable {
     public func transform(text: String, using skill: Skill) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
-            var request = URLRequest(url: url, timeoutInterval: 30)
+            var request = URLRequest(url: url, timeoutInterval: 120)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             if let apiKey = apiKey {
@@ -99,8 +99,8 @@ public struct OllamaClient: Sendable {
             }
 
             let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = 30
-            config.timeoutIntervalForResource = 60
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 120
 
             let streamer = OllamaStreamDelegate(continuation: continuation)
             let session = URLSession(configuration: config, delegate: streamer, delegateQueue: nil)
