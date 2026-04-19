@@ -33,6 +33,12 @@ public final class SkillStore: ObservableObject {
         refresh()
     }
 
+    public func deleteSkill(_ skill: Skill) throws {
+        let fileURL = URL(fileURLWithPath: skill.sourceFile)
+        try FileManager.default.removeItem(at: fileURL)
+        refresh()
+    }
+
     deinit {
         watcher?.cancel()
         if watchDescriptor >= 0 {

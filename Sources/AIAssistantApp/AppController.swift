@@ -104,6 +104,17 @@ final class AppController: ObservableObject {
                 }
             }
         }
+
+        launcherController.proxy.onDeleteSkill = { [weak self] skill in
+            Task { @MainActor in
+                guard let self = self else { return }
+                do {
+                    try self.skillStore.deleteSkill(skill)
+                } catch {
+                    self.launcherController.showError("Failed to delete skill: \(error.localizedDescription)")
+                }
+            }
+        }
         
         hotKeyMonitor = GlobalHotKeyMonitor { [weak self] in
             Task { @MainActor in

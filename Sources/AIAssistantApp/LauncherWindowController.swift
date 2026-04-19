@@ -334,6 +334,7 @@ final class LauncherProxyController: ObservableObject {
     var onStartCreate: (() -> Void)?
     var onGeneratePrompt: (() -> Void)?
     var onSaveSkill: (() -> Void)?
+    var onDeleteSkill: ((Skill) -> Void)?
 
     var filteredSkills: [Skill] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -362,6 +363,9 @@ private struct LauncherRootView: View {
     @ObservedObject var proxy: LauncherProxyController
     @FocusState private var searchFocused: Bool
     @FocusState private var createInputFocused: Bool
+
+    @State private var skillToDelete: Skill?
+    @State private var showingDeleteAlert = false
 
     var body: some View {
         Group {
@@ -424,25 +428,43 @@ private struct LauncherRootView: View {
                 VStack(spacing: 8) {
                     if !proxy.filteredSkills.isEmpty {
                         ForEach(Array(proxy.filteredSkills.enumerated()), id: \.element.id) { index, skill in
-                            Button {
-                                proxy.selectedIndex = index
-                                proxy.onSelect?(skill)
-                            } label: {
-                                Text(skill.name)
-                                    .font(.system(size: 17, weight: index == proxy.selectedIndex ? .semibold : .medium, design: .rounded))
-                                    .foregroundStyle(.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 18)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(index == proxy.selectedIndex ? Color.accentColor : Color.clear)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { hovering in
-                                if hovering {
+                            HStack(spacing: 0) {
+                                Button {
                                     proxy.selectedIndex = index
+                                    proxy.onSelect?(skill)
+                                } label: {
+                                    Text(skill.name)
+                                        .font(.system(size: 17, weight: index == proxy.selectedIndex ? .semibold : .medium, design: .rounded))
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .fill(index == proxy.selectedIndex ? Color.accentColor : Color.clear)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .onHover { hovering in
+                                    if hovering {
+                                        proxy.selectedIndex = index
+                                    }
+                                }
+
+                                if index == proxy.selectedIndex {
+                                    Button {
+                                        skillToDelete = skill
+                                        showingDeleteAlert = true
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(.red.opacity(0.8))
+                                            .padding(10)
+                                            .background(Color.red.opacity(0.1), in: Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.trailing, 8)
+                                    .transition(.opacity.combined(with: .scale))
                                 }
                             }
                         }
@@ -495,6 +517,14 @@ private struct LauncherRootView: View {
             default:
                 break
             }
+        }
+        .alert("Delete Skill?", isPresented: $showingDeleteAlert, presenting: skillToDelete) { skill in
+            Button("Delete", role: .destructive) {
+                proxy.onDeleteSkill?(skill)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { skill in
+            Text("Are you sure you want to delete '\(skill.name)'? This action cannot be undone.")
         }
     }
 
