@@ -3,10 +3,15 @@ import AIAssistantKit
 import Combine
 import SwiftUI
 
+final class LauncherPanel: NSPanel {
+    override var canBecomeKey: Bool { return true }
+    override var canBecomeMain: Bool { return true }
+}
+
 @MainActor
 final class LauncherWindowController: NSWindowController {
     let proxy = LauncherProxyController()
-    private let panel: NSPanel
+    private let panel: LauncherPanel
     private let hostingView: NSHostingView<LauncherRootView>
     private var localMonitor: Any?
     private var globalMonitor: Any?
@@ -15,7 +20,7 @@ final class LauncherWindowController: NSWindowController {
 
     init() {
         self.hostingView = NSHostingView(rootView: LauncherRootView(proxy: proxy))
-        self.panel = NSPanel(
+        self.panel = LauncherPanel(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 260),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -482,19 +487,11 @@ private struct LauncherRootView: View {
                 .foregroundStyle(.secondary)
 
             ZStack(alignment: .topLeading) {
-                if proxy.newSkillDescription.isEmpty {
-                    Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(Color.primary.opacity(0.35))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 8)
-                }
                 if #available(macOS 13.0, *) {
-                    TextField("", text: $proxy.newSkillDescription, axis: .vertical)
-                        .textFieldStyle(.plain)
+                    TextEditor(text: $proxy.newSkillDescription)
+                        .scrollContentBackground(.hidden)
                         .font(.system(size: 15, design: .rounded))
                         .foregroundStyle(.primary)
-                        .lineLimit(5...8)
                         .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
                 } else {
@@ -504,13 +501,19 @@ private struct LauncherRootView: View {
                         .focused($createInputFocused)
                         .disabled(proxy.viewState == .createGenerating)
                 }
+                
+                if proxy.newSkillDescription.isEmpty {
+                    Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
+                        .font(.system(size: 15, design: .rounded))
+                        .foregroundStyle(Color.primary.opacity(0.35))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
             }
             .padding(12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .onTapGesture {
-                createInputFocused = true
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack(spacing: 12) {
                 Button(action: {
@@ -577,22 +580,21 @@ private struct LauncherRootView: View {
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                 
-                if #available(macOS 13.0, *) {
-                    TextField("", text: $proxy.newSkillPrompt, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .padding(12)
-                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    TextEditor(text: $proxy.newSkillPrompt)
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .padding(12)
-                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ZStack(alignment: .topLeading) {
+                    if #available(macOS 13.0, *) {
+                        TextEditor(text: $proxy.newSkillPrompt)
+                            .scrollContentBackground(.hidden)
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundStyle(.primary)
+                    } else {
+                        TextEditor(text: $proxy.newSkillPrompt)
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundStyle(.primary)
+                    }
                 }
+                .padding(8)
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             HStack(spacing: 12) {
