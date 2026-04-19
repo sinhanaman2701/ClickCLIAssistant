@@ -101,11 +101,9 @@ final class LauncherWindowController: NSWindowController {
         var size = NSSize(width: 560, height: 260)
         switch proxy.viewState {
         case .skills:
-            // Top padding (16*2) + Search bar (int. padding) ~ 80, fixed extra padding ~ 20
-            // List item ~ 48pt each
-            // Max height clamped to ~ 600
-            let contentHeight = proxy.filteredSkills.count * 48 + 140
-            size.height = CGFloat(max(180, min(contentHeight, 600)))
+            let childCount = max(1, proxy.filteredSkills.count)
+            let contentHeight = childCount * 56 + 180
+            size.height = CGFloat(max(280, min(contentHeight, 520)))
         case .createInput, .createGenerating, .createReview:
             size.height = 420
         case .loading, .streaming, .result, .error:
@@ -359,7 +357,7 @@ private struct LauncherRootView: View {
             .buttonStyle(.plain)
         }
         .padding(18)
-        .frame(width: 560)
+        .frame(width: 560, maxHeight: .infinity, alignment: .top)
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
