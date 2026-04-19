@@ -23,6 +23,44 @@ public struct OllamaClient: Sendable {
         }
     }
 
+    public func generateSkillPrompt(description: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")
+            var request = URLRequest(url: url, timeoutInterval: 30)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let apiKey = apiKey {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+            do {
+                request.httpBody = try JSONEncoder().encode(GenerateRequest(
+                    model: model,
+                    system: """
+                    You are an expert prompt engineer. The user will ask you to create an AI skill. 
+                    Write a detailed, structured prompt that an LLM can follow to execute this skill perfectly.
+                    Output ONLY the raw prompt instructions. Do NOT include markdown fences, preambles, or explanations. 
+                    Be rigorous, clear, and establish strict bounds for the output.
+                    """,
+                    prompt: description
+                ))
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
+
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 60
+            
+            let delegate = OllamaStreamDelegate(continuation: continuation)
+            let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+            let task = session.dataTask(with: request)
+            task.resume()
+        }
+    }
+
     public func transform(text: String, using skill: Skill) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let url = apiKey != nil ? URL(string: "https://ollama.com/api/generate")! : host.appending(path: "/api/generate")

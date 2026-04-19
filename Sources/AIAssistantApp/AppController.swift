@@ -2,6 +2,7 @@ import AppKit
 import AIAssistantKit
 import Combine
 import Foundation
+import SwiftUI
 
 @MainActor
 final class AppController: ObservableObject {
@@ -42,7 +43,65 @@ final class AppController: ObservableObject {
         }
         launcherController.proxy.onBack = { [weak self] in
             Task { @MainActor in
-                await self?.showLauncher()
+                if self?.launcherController.proxy.viewState == .createInput {
+                    self?.launcherController.proxy.viewState = .skills
+                } else {
+                    await self?.showLauncher()
+                }
+            }
+        }
+
+        launcherController.proxy.onStartCreate = { [weak self] in
+            Task { @MainActor in
+                guard let proxy = self?.launcherController.proxy else { return }
+                proxy.newSkillName = ""
+                proxy.newSkillDescription = ""
+                proxy.newSkillPrompt = ""
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    proxy.viewState = .createInput
+                }
+            }
+        }
+
+        launcherController.proxy.onGeneratePrompt = { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { return }
+                withAnimation(.spring()) {
+                    self.launcherController.proxy.viewState = .createGenerating
+                }
+                
+                let desc = self.launcherController.proxy.newSkillDescription
+                self.launcherController.proxy.newSkillPrompt = ""
+                
+                do {
+                    let stream = self.ollamaClient.generateSkillPrompt(description: desc)
+                    
+                    withAnimation(.spring()) {
+                        self.launcherController.proxy.viewState = .createReview
+                    }
+                    
+                    for try await chunk in stream {
+                        self.launcherController.proxy.newSkillPrompt += chunk
+                    }
+                } catch {
+                    self.launcherController.showError("Failed to generate prompt: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        launcherController.proxy.onSaveSkill = { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { return }
+                let name = self.launcherController.proxy.newSkillName
+                let prompt = self.launcherController.proxy.newSkillPrompt
+                do {
+                    try self.skillStore.saveSkill(name: name, prompt: prompt)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        self.launcherController.proxy.viewState = .skills
+                    }
+                } catch {
+                    self.launcherController.showError("Failed to save skill: \(error.localizedDescription)")
+                }
             }
         }
         

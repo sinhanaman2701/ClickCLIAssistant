@@ -6,12 +6,31 @@ import Foundation
 public final class SkillStore: ObservableObject {
     @Published public private(set) var skills: [Skill] = []
 
-    private let skillsDirectory: URL
+    public let skillsDirectory: URL
     private var watcher: DispatchSourceFileSystemObject?
     private var watchDescriptor: Int32 = -1
 
     public init(skillsDirectory: URL) {
         self.skillsDirectory = skillsDirectory
+    }
+
+    public func saveSkill(name: String, prompt: String) throws {
+        let cleanedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedName.isEmpty else { throw AppError.missingConfig }
+        let fileName = cleanedName.hasSuffix(".md") ? cleanedName : "\(cleanedName).md"
+        let fileURL = skillsDirectory.appendingPathComponent(fileName)
+        
+        let contents = """
+        # \(cleanedName)
+        
+        ## Description
+        A custom skill generated via natural language prompt.
+        
+        ## Prompt
+        \(prompt)
+        """
+        try contents.write(to: fileURL, atomically: true, encoding: .utf8)
+        refresh()
     }
 
     deinit {

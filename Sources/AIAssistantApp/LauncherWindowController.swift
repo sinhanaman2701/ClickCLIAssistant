@@ -1,5 +1,6 @@
 import AppKit
 import AIAssistantKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -10,6 +11,7 @@ final class LauncherWindowController: NSWindowController {
     private var localMonitor: Any?
     private var globalMonitor: Any?
     private var globalKeyMonitor: Any?
+    private var cancellables = Set<AnyCancellable>()
 
     init() {
         self.hostingView = NSHostingView(rootView: LauncherRootView(proxy: proxy))
@@ -27,6 +29,10 @@ final class LauncherWindowController: NSWindowController {
         panel.hidesOnDeactivate = true
         panel.contentView = hostingView
         super.init(window: panel)
+        
+        proxy.onStateOrQueryChange = { [weak self] in
+            self?.updateFrameSize()
+        }
     }
 
     @available(*, unavailable)
@@ -43,9 +49,7 @@ final class LauncherWindowController: NSWindowController {
         proxy.selectedIndex = 0
         proxy.viewState = .skills
         
-        let size = NSSize(width: 560, height: 260)
-        panel.setContentSize(size)
-        panel.setFrame(centeredFrame(size: size), display: true)
+        updateFrameSize(animate: false)
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         installDismissMonitors()
@@ -61,13 +65,7 @@ final class LauncherWindowController: NSWindowController {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             proxy.viewState = .loading
         }
-        
-        let size = NSSize(width: 560, height: 360)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.4
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            panel.animator().setFrame(centeredFrame(size: size), display: true)
-        }
+        updateFrameSize(animate: true)
     }
 
     func appendStreamedText(_ chunk: String) {
@@ -91,17 +89,41 @@ final class LauncherWindowController: NSWindowController {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             proxy.viewState = .error
         }
-        let size = NSSize(width: 560, height: 360)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            panel.animator().setFrame(centeredFrame(size: size), display: true)
-        }
+        updateFrameSize(animate: true)
     }
 
     func hide() {
         panel.orderOut(nil)
         removeDismissMonitors()
+    }
+
+    private func updateFrameSize(animate: Bool = true) {
+        var size = NSSize(width: 560, height: 260)
+        switch proxy.viewState {
+        case .skills:
+            // Top padding (16*2) + Search bar (int. padding) ~ 80, fixed extra padding ~ 20
+            // List item ~ 48pt each
+            // Max height clamped to ~ 600
+            let contentHeight = proxy.filteredSkills.count * 48 + 140
+            size.height = CGFloat(max(180, min(contentHeight, 600)))
+        case .createInput, .createGenerating, .createReview:
+            size.height = 420
+        case .loading, .streaming, .result, .error:
+            size.height = 360
+        }
+        
+        let targetFrame = centeredFrame(size: size)
+        
+        if animate {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            panel.setContentSize(size)
+            panel.setFrame(targetFrame, display: true)
+        }
     }
 
     private func centeredFrame(size: NSSize = NSSize(width: 560, height: 260)) -> NSRect {
@@ -173,10 +195,17 @@ final class LauncherProxyController: ObservableObject {
         case streaming
         case result
         case error
+        case createInput
+        case createGenerating
+        case createReview
     }
 
-    @Published var viewState: ViewState = .skills
-    @Published var query = ""
+    @Published var viewState: ViewState = .skills {
+        didSet { onStateOrQueryChange?() }
+    }
+    @Published var query = "" {
+        didSet { onStateOrQueryChange?() }
+    }
     @Published var skills: [Skill] = []
     @Published var status: String?
     @Published var selectedIndex = 0
@@ -184,11 +213,21 @@ final class LauncherProxyController: ObservableObject {
     @Published var resultTitle = ""
     @Published var resultBody = ""
 
+    @Published var newSkillName = ""
+    @Published var newSkillDescription = ""
+    @Published var newSkillPrompt = ""
+
+    var onStateOrQueryChange: (() -> Void)?
+
     var onSelect: ((Skill) -> Void)?
     var onCopy: (() -> Void)?
     var onReplace: (() -> Void)?
     var onBack: (() -> Void)?
     var focusSearch: (() -> Void)?
+
+    var onStartCreate: (() -> Void)?
+    var onGeneratePrompt: (() -> Void)?
+    var onSaveSkill: (() -> Void)?
 
     var filteredSkills: [Skill] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -219,12 +258,15 @@ private struct LauncherRootView: View {
 
     var body: some View {
         Group {
-            if proxy.viewState == .skills {
-                skillsView
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
-            } else {
-                resultView
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
+            switch proxy.viewState {
+            case .skills:
+                skillsView.transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
+            case .createInput, .createGenerating:
+                createInputView.transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
+            case .createReview:
+                createReviewView.transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
+            default:
+                resultView.transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity))
             }
         }
         .background(
@@ -267,34 +309,57 @@ private struct LauncherRootView: View {
                     .padding(.horizontal, 6)
             }
 
-            if !proxy.filteredSkills.isEmpty {
+            ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(Array(proxy.filteredSkills.prefix(3).enumerated()), id: \.element.id) { index, skill in
-                        Button {
-                            proxy.onSelect?(skill)
-                        } label: {
-                            Text(skill.name)
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(index == proxy.selectedIndex ? Color.white.opacity(0.2) : Color.clear)
-                                )
+                    if !proxy.filteredSkills.isEmpty {
+                        ForEach(Array(proxy.filteredSkills.enumerated()), id: \.element.id) { index, skill in
+                            Button {
+                                proxy.onSelect?(skill)
+                            } label: {
+                                Text(skill.name)
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(index == proxy.selectedIndex ? Color.white.opacity(0.2) : Color.clear)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    } else {
+                        Text("No matching skills")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .padding(.top, 8)
                     }
                 }
                 .padding(.top, 4)
-                .frame(maxWidth: .infinity, alignment: .top)
             }
+            .frame(maxWidth: .infinity, alignment: .top)
 
             Spacer(minLength: 0)
+            
+            Button {
+                proxy.onStartCreate?()
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Create New Skill")
+                }
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
         }
         .padding(18)
-        .frame(width: 560, height: 260, alignment: .top)
+        .frame(width: 560)
         .onAppear {
             proxy.focusSearch = {
                 searchFocused = true
@@ -400,5 +465,154 @@ private struct LauncherRootView: View {
         }
         .padding(20)
         .frame(width: 560, height: 360)
+    }
+
+    @ViewBuilder
+    private var createInputView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Create New Skill")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            
+            Text("Describe what you want this skill to do in natural language.")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.8))
+
+            ZStack(alignment: .topLeading) {
+                if proxy.newSkillDescription.isEmpty {
+                    Text("e.g., Translate the selected text into casual Spanish, keeping it concise and omitting formal pleasantries.")
+                        .font(.system(size: 15, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 8)
+                }
+                if #available(macOS 13.0, *) {
+                    TextField("", text: $proxy.newSkillDescription, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(5...8)
+                        .disabled(proxy.viewState == .createGenerating)
+                } else {
+                    TextEditor(text: $proxy.newSkillDescription)
+                        .font(.system(size: 15, design: .rounded))
+                        .foregroundStyle(.white)
+                        .disabled(proxy.viewState == .createGenerating)
+                }
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 12) {
+                Button(action: {
+                    proxy.onGeneratePrompt?()
+                }) {
+                    HStack {
+                        if proxy.viewState == .createGenerating {
+                            ProgressView().controlSize(.small).tint(.white)
+                        }
+                        Text(proxy.viewState == .createGenerating ? "Generating..." : "Generate Prompt")
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue.opacity(proxy.newSkillDescription.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(.white)
+                }
+                .disabled(proxy.viewState == .createGenerating || proxy.newSkillDescription.isEmpty)
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    proxy.onBack?()
+                }) {
+                    Text("Cancel")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .disabled(proxy.viewState == .createGenerating)
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .frame(width: 560, height: 420)
+    }
+
+    @ViewBuilder
+    private var createReviewView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Review & Save Skill")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            HStack {
+                Text("Name:")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.8))
+                TextField("e.g. Spanish Translator", text: $proxy.newSkillName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Generated Prompt:")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.8))
+                
+                if #available(macOS 13.0, *) {
+                    TextField("", text: $proxy.newSkillPrompt, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    TextEditor(text: $proxy.newSkillPrompt)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button(action: {
+                    proxy.onSaveSkill?()
+                }) {
+                    Text("Save Skill")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.green.opacity(proxy.newSkillName.isEmpty || proxy.newSkillPrompt.isEmpty ? 0.3 : 0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .disabled(proxy.newSkillName.isEmpty || proxy.newSkillPrompt.isEmpty)
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    proxy.viewState = .createInput
+                }) {
+                    Text("Back")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .frame(width: 560, height: 420)
     }
 }
