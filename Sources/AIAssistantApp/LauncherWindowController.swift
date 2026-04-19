@@ -569,7 +569,14 @@ private struct LauncherRootView: View {
                 isDisabled: proxy.viewState == .createGenerating
             )
             .padding(12)
-            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack(spacing: 12) {
@@ -644,7 +651,14 @@ private struct LauncherRootView: View {
                     isDisabled: false
                 )
                 .padding(8)
-                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.black.opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
