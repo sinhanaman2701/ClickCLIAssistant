@@ -94,9 +94,8 @@ public enum Installer {
             
             print("")
             print("Which model?")
-            print("ℹ We recommend gemma3:27b-cloud or qwen2.5 for fast response times.")
-            print("ℹ For large documents (4,000+ words), use a larger model like gemini-3-flash-preview:cloud.")
-            print("  (Note: Larger models are better at high-volume tasks but may be more token-expensive.)")
+            print("ℹ We recommend: gemini-3-flash-preview:cloud (best for large documents)")
+            print("  (Note: This model is resource-heavy. You are free to use any other Ollama cloud model.)")
             print("  You can find more models on ollama.com by looking for their `ollama run` command.")
             
             let modelCommand = prompt(

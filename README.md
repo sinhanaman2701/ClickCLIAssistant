@@ -56,7 +56,7 @@ The installer will:
 Important:
 
 - when prompted, paste a model command like `ollama run kimi-k2.5:cloud`
-- **Large Documents**: For handling large documents (4,000+ words), we recommend using models like `qwen3.5:cloud` as they have significantly larger context windows.
+- **Large Documents**: For handling large documents (4,000+ words), we recommend using `gemini-3-flash-preview:cloud`. (Note: This is resource-heavy; users are free to use any other Ollama cloud model).
 - do not paste multiple shell commands into one prompt
 
 ## CLI Commands
